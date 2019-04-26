@@ -1,6 +1,7 @@
 
 package cz.habarta.typescript.generator.parser;
 
+import cz.habarta.typescript.generator.Settings;
 import cz.habarta.typescript.generator.TypeScriptGenerator;
 import cz.habarta.typescript.generator.compiler.EnumMemberModel;
 import cz.habarta.typescript.generator.util.Utils;
@@ -22,10 +23,13 @@ import javax.xml.bind.JAXB;
 
 public class Javadoc {
 
+    private final String newline;
     private final List<Root> dRoots;
 
-    public Javadoc(List<File> javadocXmlFiles) {
-        this.dRoots = loadJavadocXmlFiles(javadocXmlFiles);
+    public Javadoc(Settings settings) {
+        Objects.requireNonNull(settings, "settings");
+        this.newline = settings.newline;
+        this.dRoots = loadJavadocXmlFiles(settings.javadocXmlFiles);
     }
 
     private static List<Root> loadJavadocXmlFiles(List<File> javadocXmlFiles) {
@@ -53,7 +57,7 @@ public class Javadoc {
             final EnumModel dEnumModel = enrichEnum(enumModel);
             dEnums.add(dEnumModel);
         }
-        return new Model(dBeans, dEnums, model.getJaxrsApplication());
+        return new Model(dBeans, dEnums, model.getRestApplications());
     }
 
     private BeanModel enrichBean(BeanModel bean) {
@@ -149,7 +153,7 @@ public class Javadoc {
         final EnumConstant dConstant = findJavadocEnumConstant(enumMember.getPropertyName(), dEnum);
         final List<TagInfo> tags = dConstant != null ? dConstant.getTag(): null;
         final String memberComment = dConstant != null ? dConstant.getComment() : null;
-        return enumMember.withComments(getComments(memberComment, tags));
+        return enumMember.withComments(Utils.concat(getComments(memberComment, tags), enumMember.getComments()));
     }
 
     // finders
@@ -229,13 +233,20 @@ public class Javadoc {
         return null;
     }
 
-    private static List<String> getComments(String dComments, List<TagInfo> tags) {
+    private List<String> getComments(String dComments, List<TagInfo> tags) {
         if (dComments == null && (tags == null || tags.isEmpty())) {
             return null;
         }
         final List<String> result = new ArrayList<>();
         if (dComments != null) {
-            result.addAll(Utils.splitMultiline(dComments, true));
+            final String nn = newline + newline;
+            final String replacedHtmlLines = dComments
+                    .replaceAll("\\s*<br>\\s*", nn)
+                    .replaceAll("\\s*<br/>\\s*", nn)
+                    .replaceAll("\\s*<br />\\s*", nn)
+                    .replaceAll("\\s*<p>\\s*", nn)
+                    .replaceAll("\\s*</p>\\s*", nn);
+            result.addAll(Utils.splitMultiline(replacedHtmlLines, true));
         }
         if (tags != null) {
             for (TagInfo tag : tags) {

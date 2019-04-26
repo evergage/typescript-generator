@@ -54,7 +54,9 @@ public class JavadocTest {
             Assert.assertNull(property.getComments());
         }
         {
-            final String generated = new TypeScriptGenerator(settings).generateTypeScript(Input.from(ClassWithJavadoc.class, InterfaceWithJavadoc.class));
+            final String generated = new TypeScriptGenerator(settings).generateTypeScript(
+                    Input.from(ClassWithJavadoc.class, InterfaceWithJavadoc.class, ClassWithEmbeddedExample.class));
+
             Assert.assertTrue(generated.contains("Documentation for ClassWithJavadoc. First line."));
             Assert.assertTrue(generated.contains("Second line."));
             Assert.assertTrue(generated.contains("Documentation for documentedField."));
@@ -69,6 +71,22 @@ public class JavadocTest {
             Assert.assertTrue(generated.contains("Documentation for callMeMaybe."));
             Assert.assertTrue(generated.contains("@example ```java"));
             Assert.assertTrue(generated.contains("additional arbitrary metadata"));
+            Assert.assertTrue(generated.contains(" *     // indentation and line breaks are kept\n * \n *     {@literal @}"));
+            Assert.assertTrue(generated.contains(" *     public List<String> generics() {\n"));
+        }
+        {
+            final String generated = new TypeScriptGenerator(settings).generateTypeScript(Input.from(ClassWithBrElements.class));
+            Assert.assertTrue(!generated.contains("<br>"));
+            Assert.assertTrue(!generated.contains("<br/>"));
+            Assert.assertTrue(!generated.contains("<br />"));
+            Assert.assertTrue(generated.contains("Class documentation\n * \n"));
+            Assert.assertTrue(generated.contains("Some documentation\n * \n * for this class."));
+        }
+        {
+            final String generated = new TypeScriptGenerator(settings).generateTypeScript(Input.from(ClassWithPElements.class));
+            Assert.assertTrue(!generated.contains("<p>"));
+            Assert.assertTrue(!generated.contains("</p>"));
+            Assert.assertTrue(generated.contains("Long\n * paragraph\n * \n * Second\n * paragraph"));
         }
     }
 
@@ -140,6 +158,46 @@ public class JavadocTest {
 
         public String undocumentedField;
 
+    }
+
+    /**
+     * This class comes with an embedded example!
+     *
+     * <pre>{@code
+     * public class Example {
+     *     // indentation and line breaks are kept
+     *
+     *     {@literal @}SuppressWarnings
+     *     public List<String> generics() {
+     *         return null;
+     *     }
+     * }
+     * }</pre>
+     */
+    public static class ClassWithEmbeddedExample {
+
+        public String field;
+
+    }
+
+    /**
+     * Class documentation <br>
+     * ------------------- <br/>
+     * Some documentation <br /> for this class.<br>
+     */
+    public static class ClassWithBrElements {
+    }
+
+    /**
+     * First sentence.
+     * 
+     * <p> Long
+     * paragraph </p>
+     * 
+     * <p>Second
+     * paragraph</p>
+     */
+    public static class ClassWithPElements {
     }
 
 }

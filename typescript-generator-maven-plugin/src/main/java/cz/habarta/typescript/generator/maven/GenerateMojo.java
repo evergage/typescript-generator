@@ -92,13 +92,13 @@ public class GenerateMojo extends AbstractMojo {
     private List<ModuleDependency> moduleDependencies;
 
     /**
-     * JSON classes to process.
+     * Classes to process.
      */
     @Parameter
     private List<String> classes;
 
     /**
-     * JSON classes to process specified using glob patterns
+     * Classes to process specified using glob patterns
      * so it is possible to specify package or class name suffix.
      * Glob patterns support two wildcards:
      * <ul>
@@ -111,19 +111,25 @@ public class GenerateMojo extends AbstractMojo {
     private List<String> classPatterns;
 
     /**
-     * JSON classes to process specified by annotations.
+     * Classes to process specified by annotations.
      */
     @Parameter
     private List<String> classesWithAnnotations;
 
     /**
-     * JSON classes to process specified by implemented interface.
+     * Classes to process specified by implemented interface.
      */
     @Parameter
     private List<String> classesImplementingInterfaces;
 
     /**
-     * Scans specified JAX-RS {@link javax.ws.rs.core.Application} for JSON classes to process.
+     * Classes to process specified by extended superclasses.
+     */
+    @Parameter
+    private List<String> classesExtendingClasses;
+
+    /**
+     * Scans specified JAX-RS {@link javax.ws.rs.core.Application} for classes to process.
      * Parameter contains fully-qualified class name.
      * It is possible to exclude particular REST resource classes using {@link #excludeClasses} parameter.
      */
@@ -212,8 +218,10 @@ public class GenerateMojo extends AbstractMojo {
      * Supported values are:
      * <ul>
      * <li><code>questionMark</code> - property will be marked using <code>?</code> character as optional</li>
-     * <li><code>nullableType</code> - property will not be optional but its type will be union with <code>null</code> value</li>
      * <li><code>questionMarkAndNullableType</code> - property will be optional and it will also have union with <code>null</code> value</li>
+     * <li><code>nullableType</code> - property will not be optional but its type will be union with <code>null</code> value</li>
+     * <li><code>nullableAndUndefinableType</code> - property will not be optional but its type will be union with <code>null</code> and <code>undefined</code> values</li>
+     * <li><code>undefinableType</code> - property will not be optional but its type will be union with <code>undefined</code> value</li>
      * </ul>
      * Default value is <code>questionMark</code>.
      */
@@ -386,6 +394,39 @@ public class GenerateMojo extends AbstractMojo {
     private boolean generateJaxrsApplicationClient;
 
     /**
+     * If <code>true</code> interface for Spring REST application will be generated.
+     */
+    @Parameter
+    private boolean generateSpringApplicationInterface;
+
+    /**
+     * If <code>true</code> client for Spring REST application will be generated.
+     */
+    @Parameter
+    private boolean generateSpringApplicationClient;
+
+    /**
+     * If <code>true</code> Spring REST application will be loaded and scanned for classes to process.
+     * It is needed to specify application class using another parameter (for example {@link #classes}).
+     */
+    @Parameter
+    private boolean scanSpringApplication;
+
+    /**
+     * Deprecated, use {@link #restNamespacing}.
+     */
+    @Deprecated
+    @Parameter
+    private RestNamespacing jaxrsNamespacing;
+
+    /**
+     * Deprecated, use {@link #restNamespacingAnnotation}.
+     */
+    @Deprecated
+    @Parameter
+    private String jaxrsNamespacingAnnotation;
+
+    /**
      * Specifies how JAX-RS REST operations will be grouped into objects.
      * Supported values are:
      * <ul>
@@ -396,7 +437,7 @@ public class GenerateMojo extends AbstractMojo {
      * Default value is <code>singleObject</code>.
      */
     @Parameter
-    private JaxrsNamespacing jaxrsNamespacing;
+    private RestNamespacing restNamespacing;
 
     /**
      * Specifies annotation used for grouping JAX-RS REST operations.
@@ -409,7 +450,7 @@ public class GenerateMojo extends AbstractMojo {
      * </ul>
      */
     @Parameter
-    private String jaxrsNamespacingAnnotation;
+    private String restNamespacingAnnotation;
 
     /**
      * Specifies HTTP response type in JAXRS application.
@@ -465,6 +506,14 @@ public class GenerateMojo extends AbstractMojo {
      */
     @Parameter
     private boolean noTslintDisable;
+
+    /**
+     * If <code>true</code> generated file will not be prevented from linting by ESLint.
+     * By default there is a {@code eslint-disable} comment that will force ESLint to ignore the generated file.
+     * This can be enabled to suppress this comment so that the file can be linted by ESLint.
+     */
+    @Parameter
+    private boolean noEslintDisable;
 
     /**
      * List of Javadoc XML files to search for documentation comments.
@@ -711,8 +760,13 @@ public class GenerateMojo extends AbstractMojo {
             settings.ignoreSwaggerAnnotations = ignoreSwaggerAnnotations;
             settings.generateJaxrsApplicationInterface = generateJaxrsApplicationInterface;
             settings.generateJaxrsApplicationClient = generateJaxrsApplicationClient;
+            settings.generateSpringApplicationInterface = generateSpringApplicationInterface;
+            settings.generateSpringApplicationClient = generateSpringApplicationClient;
+            settings.scanSpringApplication = scanSpringApplication;
             settings.jaxrsNamespacing = jaxrsNamespacing;
             settings.setJaxrsNamespacingAnnotation(classLoader, jaxrsNamespacingAnnotation);
+            settings.restNamespacing = restNamespacing;
+            settings.setRestNamespacingAnnotation(classLoader, restNamespacingAnnotation);
             settings.restResponseType = restResponseType;
             settings.setRestOptionsType(restOptionsType);
             settings.loadCustomTypeProcessor(classLoader, customTypeProcessor);
@@ -720,6 +774,7 @@ public class GenerateMojo extends AbstractMojo {
             settings.sortTypeDeclarations = sortTypeDeclarations;
             settings.noFileComment = noFileComment;
             settings.noTslintDisable = noTslintDisable;
+            settings.noEslintDisable = noEslintDisable;
             settings.javadocXmlFiles = javadocXmlFiles;
             settings.loadExtensions(classLoader, extensions, extensionsWithConfiguration);
             settings.loadIncludePropertyAnnotations(classLoader, includePropertyAnnotations);
@@ -747,7 +802,8 @@ public class GenerateMojo extends AbstractMojo {
 
             // TypeScriptGenerator
             new TypeScriptGenerator(settings).generateTypeScript(
-                    Input.fromClassNamesAndJaxrsApplication(classes, classPatterns, classesWithAnnotations, classesImplementingInterfaces,
+                    Input.fromClassNamesAndJaxrsApplication(classes, classPatterns, classesWithAnnotations,
+                        classesImplementingInterfaces, classesExtendingClasses,
                         classesFromJaxrsApplication,
                         classesFromAutomaticJaxrsApplication, settings.getExcludeFilter(),
                         classLoader, loggingLevel == Logger.Level.Debug),

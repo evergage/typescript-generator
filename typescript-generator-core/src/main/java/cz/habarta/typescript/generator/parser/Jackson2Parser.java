@@ -2,9 +2,11 @@
 package cz.habarta.typescript.generator.parser;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
+import com.fasterxml.jackson.annotation.JsonClassDescription;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIdentityInfo;
 import com.fasterxml.jackson.annotation.JsonIdentityReference;
+import com.fasterxml.jackson.annotation.JsonPropertyDescription;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeName;
@@ -28,6 +30,7 @@ import com.fasterxml.jackson.databind.ser.BeanSerializer;
 import com.fasterxml.jackson.databind.ser.BeanSerializerFactory;
 import com.fasterxml.jackson.databind.ser.DefaultSerializerProvider;
 import com.fasterxml.jackson.module.jaxb.JaxbAnnotationIntrospector;
+import cz.habarta.typescript.generator.ExcludingTypeProcessor;
 import cz.habarta.typescript.generator.Jackson2ConfigurationResolved;
 import cz.habarta.typescript.generator.OptionalProperties;
 import cz.habarta.typescript.generator.Settings;
@@ -35,7 +38,6 @@ import cz.habarta.typescript.generator.TypeProcessor;
 import cz.habarta.typescript.generator.TypeScriptGenerator;
 import cz.habarta.typescript.generator.compiler.EnumKind;
 import cz.habarta.typescript.generator.compiler.EnumMemberModel;
-import cz.habarta.typescript.generator.util.Predicate;
 import cz.habarta.typescript.generator.util.UnionType;
 import cz.habarta.typescript.generator.util.Utils;
 import java.lang.annotation.Annotation;
@@ -46,19 +48,71 @@ import java.lang.reflect.Modifier;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 
 public class Jackson2Parser extends ModelParser {
 
+    public static class Jackson2ParserFactory extends ModelParser.Factory {
+
+        private final boolean useJaxbAnnotations;
+
+        public Jackson2ParserFactory() {
+            this(false);
+        }
+
+        private Jackson2ParserFactory(boolean useJaxbAnnotations) {
+            this.useJaxbAnnotations = useJaxbAnnotations;
+        }
+
+        @Override
+        public TypeProcessor getSpecificTypeProcessor() {
+            return createSpecificTypeProcessor();
+        }
+
+        @Override
+        public Jackson2Parser create(Settings settings, TypeProcessor commonTypeProcessor, List<RestApplicationParser> restApplicationParsers) {
+            return new Jackson2Parser(settings, commonTypeProcessor, restApplicationParsers, useJaxbAnnotations);
+        }
+
+    }
+
+    public static class JaxbParserFactory extends Jackson2ParserFactory {
+        
+        public JaxbParserFactory() {
+            super(true);
+        }
+        
+    }
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public Jackson2Parser(Settings settings, TypeProcessor typeProcessor) {
-        this(settings, typeProcessor, false);
+        this(settings, typeProcessor, Collections.emptyList(), false);
+    }
+
+    public Jackson2Parser(Settings settings, TypeProcessor commonTypeProcessor, List<RestApplicationParser> restApplicationParsers, boolean useJaxbAnnotations) {
+        super(settings, commonTypeProcessor, restApplicationParsers);
+        if (settings.jackson2ModuleDiscovery) {
+            objectMapper.registerModules(ObjectMapper.findModules(settings.classLoader));
+        }
+        for (Class<? extends Module> moduleClass : settings.jackson2Modules) {
+            try {
+                objectMapper.registerModule(moduleClass.getConstructor().newInstance());
+            } catch (ReflectiveOperationException e) {
+                throw new RuntimeException(String.format("Cannot instantiate Jackson2 module '%s'", moduleClass.getName()), e);
+            }
+        }
+        if (useJaxbAnnotations) {
+            AnnotationIntrospector introspector = new JaxbAnnotationIntrospector(objectMapper.getTypeFactory());
+            objectMapper.setAnnotationIntrospector(introspector);
+        }
         final Jackson2ConfigurationResolved config = settings.jackson2Configuration;
         if (config != null) {
             setVisibility(PropertyAccessor.FIELD, config.fieldVisibility);
@@ -91,34 +145,46 @@ public class Jackson2Parser extends ModelParser {
                         JsonFormat.Value.forShape(shape)));
     }
 
-    public Jackson2Parser(Settings settings, TypeProcessor typeProcessor, boolean useJaxbAnnotations) {
-        super(settings, typeProcessor, Arrays.asList(JsonNode.class.getName()));
-        if (settings.jackson2ModuleDiscovery) {
-            objectMapper.registerModules(ObjectMapper.findModules(settings.classLoader));
-        }
-        for (Class<? extends Module> moduleClass : settings.jackson2Modules) {
-            try {
-                objectMapper.registerModule(moduleClass.newInstance());
-            } catch (ReflectiveOperationException e) {
-                throw new RuntimeException(String.format("Cannot instantiate Jackson2 module '%s'", moduleClass.getName()), e);
-            }
-        }
-        if (useJaxbAnnotations) {
-            AnnotationIntrospector introspector = new JaxbAnnotationIntrospector(objectMapper.getTypeFactory());
-            objectMapper.setAnnotationIntrospector(introspector);
+    private static TypeProcessor createSpecificTypeProcessor() {
+        return new TypeProcessor.Chain(
+                new ExcludingTypeProcessor(Arrays.asList(JsonNode.class.getName())),
+                new TypeProcessor() {
+                    @Override
+                    public TypeProcessor.Result processType(Type javaType, TypeProcessor.Context context) {
+                        if (context.getTypeContext() instanceof Jackson2TypeContext) {
+                            final Jackson2TypeContext jackson2TypeContext = (Jackson2TypeContext) context.getTypeContext();
+                            final Type resultType = jackson2TypeContext.parser.processIdentity(javaType, jackson2TypeContext.beanPropertyWriter);
+                            if (resultType != null) {
+                                return context.withTypeContext(null).processType(resultType);
+                            }
+                        }
+                        return null;
+                    }
+                }
+        );
+    }
+
+    private static class Jackson2TypeContext {
+        public final Jackson2Parser parser;
+        public final BeanPropertyWriter beanPropertyWriter;
+
+        public Jackson2TypeContext(Jackson2Parser parser, BeanPropertyWriter beanPropertyWriter) {
+            this.parser = parser;
+            this.beanPropertyWriter = beanPropertyWriter;
         }
     }
 
     @Override
     protected DeclarationModel parseClass(SourceType<Class<?>> sourceClass) {
+        final List<String> classComments = getComments(sourceClass.type.getAnnotation(JsonClassDescription.class));
         if (sourceClass.type.isEnum()) {
-            return parseEnumOrObjectEnum(sourceClass);
+            return parseEnumOrObjectEnum(sourceClass, classComments);
         } else {
-            return parseBean(sourceClass);
+            return parseBean(sourceClass, classComments);
         }
     }
 
-    private BeanModel parseBean(SourceType<Class<?>> sourceClass) {
+    private BeanModel parseBean(SourceType<Class<?>> sourceClass, List<String> classComments) {
         final List<PropertyModel> properties = new ArrayList<>();
 
         final BeanHelper beanHelper = getBeanHelper(sourceClass.type);
@@ -127,6 +193,7 @@ public class Jackson2Parser extends ModelParser {
                 final Member propertyMember = beanPropertyWriter.getMember().getMember();
                 checkMember(propertyMember, beanPropertyWriter.getName(), sourceClass.type);
                 Type propertyType = getGenericType(propertyMember);
+                final List<String> propertyComments = getComments(beanPropertyWriter.getAnnotation(JsonPropertyDescription.class));
 
                 // Map.Entry
                 final Class<?> propertyRawClass = Utils.getRawClassOrNull(propertyType);
@@ -140,8 +207,7 @@ public class Jackson2Parser extends ModelParser {
                     }
                 }
 
-                // @JsonIdentityInfo and @JsonIdentityReference
-                propertyType = processIdentity(propertyType, beanPropertyWriter);
+                final Jackson2TypeContext jackson2TypeContext = new Jackson2TypeContext(this, beanPropertyWriter);
 
                 if (!isAnnotatedPropertyIncluded(beanPropertyWriter::getAnnotation, sourceClass.type.getName() + "." + beanPropertyWriter.getName())) {
                     continue;
@@ -155,11 +221,11 @@ public class Jackson2Parser extends ModelParser {
                 if (annotation != null && annotation.enabled()) {
                     pullProperties = new PropertyModel.PullProperties(annotation.prefix(), annotation.suffix());
                 }
-                properties.add(processTypeAndCreateProperty(beanPropertyWriter.getName(), propertyType, optional, sourceClass.type, propertyMember, pullProperties));
+                properties.add(processTypeAndCreateProperty(beanPropertyWriter.getName(), propertyType, jackson2TypeContext, optional, sourceClass.type, propertyMember, pullProperties, propertyComments));
             }
         }
         if (sourceClass.type.isEnum()) {
-            return new BeanModel(sourceClass.type, null, null, null, null, null, properties, null, null);
+            return new BeanModel(sourceClass.type, null, null, null, null, null, properties, classComments, null);
         }
 
         final String discriminantProperty;
@@ -207,15 +273,22 @@ public class Jackson2Parser extends ModelParser {
             processMethods(sourceClass, properties, methods);
         }
 
-        return new BeanModel(sourceClass.type, superclass, taggedUnionClasses, discriminantProperty, discriminantLiteral, interfaces, properties, null, methods);
+        return new BeanModel(sourceClass.type, superclass, taggedUnionClasses, discriminantProperty, discriminantLiteral, interfaces, properties, classComments, methods);
     }
 
+    // @JsonIdentityInfo and @JsonIdentityReference
     private Type processIdentity(Type propertyType, BeanPropertyWriter propertyWriter) {
-        final Class<?> cls = Utils.getRawClassOrNull(propertyType);
+
+        final Class<?> clsT = Utils.getRawClassOrNull(propertyType);
+        final Class<?> clsW = propertyWriter.getType().getRawClass();
+        final Class<?> cls = clsT != null ? clsT : clsW;
+
         if (cls != null) {
-            final JsonIdentityInfo identityInfo = cls.getAnnotation(JsonIdentityInfo.class);
+            final JsonIdentityInfo identityInfoC = cls.getAnnotation(JsonIdentityInfo.class);
+            final JsonIdentityInfo identityInfoP = propertyWriter.getAnnotation(JsonIdentityInfo.class);
+            final JsonIdentityInfo identityInfo = identityInfoP != null ? identityInfoP : identityInfoC;
             if (identityInfo == null) {
-                return propertyType;
+                return null;
             }
             final JsonIdentityReference identityReferenceC = cls.getAnnotation(JsonIdentityReference.class);
             final JsonIdentityReference identityReferenceP = propertyWriter.getAnnotation(JsonIdentityReference.class);
@@ -224,9 +297,13 @@ public class Jackson2Parser extends ModelParser {
 
             final Type idType;
             if (identityInfo.generator() == ObjectIdGenerators.None.class) {
-                return propertyType;
+                return null;
             } else if (identityInfo.generator() == ObjectIdGenerators.PropertyGenerator.class) {
-                final BeanPropertyWriter[] properties = getBeanHelper(cls).getProperties();
+                final BeanHelper beanHelper = getBeanHelper(cls);
+                if (beanHelper == null) {
+                    return null;
+                }
+                final BeanPropertyWriter[] properties = beanHelper.getProperties();
                 final Optional<BeanPropertyWriter> idProperty = Stream.of(properties)
                         .filter(p -> p.getName().equals(identityInfo.property()))
                         .findFirst();
@@ -236,7 +313,7 @@ public class Jackson2Parser extends ModelParser {
                     checkMember(idPropertyMember, idPropertyWriter.getName(), cls);
                     idType = getGenericType(idPropertyMember);
                 } else {
-                    return propertyType;
+                    return null;
                 }
             } else if (identityInfo.generator() == ObjectIdGenerators.IntSequenceGenerator.class) {
                 idType = Integer.class;
@@ -251,7 +328,7 @@ public class Jackson2Parser extends ModelParser {
                     ? idType
                     : new UnionType(propertyType, idType);
         }
-        return propertyType;
+        return null;
     }
 
     private static Type getGenericType(Member member) {
@@ -379,10 +456,10 @@ public class Jackson2Parser extends ModelParser {
 
     }
 
-    private DeclarationModel parseEnumOrObjectEnum(SourceType<Class<?>> sourceClass) {
+    private DeclarationModel parseEnumOrObjectEnum(SourceType<Class<?>> sourceClass, List<String> classComments) {
         final JsonFormat jsonFormat = sourceClass.type.getAnnotation(JsonFormat.class);
         if (jsonFormat != null && jsonFormat.shape() == JsonFormat.Shape.OBJECT) {
-            return parseBean(sourceClass);
+            return parseBean(sourceClass, classComments);
         }
         final boolean isNumberBased = jsonFormat != null && (
                 jsonFormat.shape() == JsonFormat.Shape.NUMBER ||
@@ -392,30 +469,44 @@ public class Jackson2Parser extends ModelParser {
         final List<EnumMemberModel> enumMembers = new ArrayList<>();
         if (sourceClass.type.isEnum()) {
             final Class<?> enumClass = (Class<?>) sourceClass.type;
-
-            try {
-                final Field[] allEnumFields = enumClass.getDeclaredFields();
-                final List<Field> constants = Arrays.stream(allEnumFields).filter(Field::isEnumConstant).collect(Collectors.toList());
-                for (Field constant : constants) {
+            final Field[] allEnumFields = enumClass.getDeclaredFields();
+            final List<Field> constants = Arrays.stream(allEnumFields).filter(Field::isEnumConstant).collect(Collectors.toList());
+            for (Field constant : constants) {
+                Object value;
+                try {
                     constant.setAccessible(true);
                     final String enumJson = objectMapper.writeValueAsString(constant.get(null));
-                    final Object value = objectMapper.readValue(enumJson, new TypeReference<Object>(){});
-
-                    if (value instanceof String) {
-                        enumMembers.add(new EnumMemberModel(constant.getName(), (String) value, null));
-                    } else if (value instanceof Number) {
-                        enumMembers.add(new EnumMemberModel(constant.getName(), (Number) value, null));
-                    } else {
-                        TypeScriptGenerator.getLogger().warning(String.format("'%s' enum as a @JsonValue that isn't a String or Number, ignoring", enumClass.getName()));
-                    }
+                    value = objectMapper.readValue(enumJson, new TypeReference<Object>(){});
+                } catch (Throwable e) {
+                    TypeScriptGenerator.getLogger().error(String.format("Cannot get enum value for constant '%s.%s'", enumClass.getName(), constant.getName()));
+                    TypeScriptGenerator.getLogger().verbose(Utils.exceptionToString(e));
+                    value = constant.getName();
                 }
-            } catch (Exception e) {
-                TypeScriptGenerator.getLogger().error(String.format("Cannot get enum values for '%s' enum", enumClass.getName()));
-                e.printStackTrace(System.out);
+
+                final List<String> constantComments = getComments(constant.getAnnotation(JsonPropertyDescription.class));
+                if (value instanceof String) {
+                    enumMembers.add(new EnumMemberModel(constant.getName(), (String) value, constantComments));
+                } else if (value instanceof Number) {
+                    enumMembers.add(new EnumMemberModel(constant.getName(), (Number) value, constantComments));
+                } else {
+                    TypeScriptGenerator.getLogger().warning(String.format("'%s' enum as a @JsonValue that isn't a String or Number, ignoring", enumClass.getName()));
+                }
             }
         }
 
-        return new EnumModel(sourceClass.type, isNumberBased ? EnumKind.NumberBased : EnumKind.StringBased, enumMembers, null);
+        return new EnumModel(sourceClass.type, isNumberBased ? EnumKind.NumberBased : EnumKind.StringBased, enumMembers, classComments);
+    }
+
+    private static List<String> getComments(JsonClassDescription classDescriptionAnnotation) {
+        final String propertyDescriptionValue = classDescriptionAnnotation != null ? classDescriptionAnnotation.value() : null;
+        final List<String> classComments = Utils.splitMultiline(propertyDescriptionValue, false);
+        return classComments;
+    }
+
+    private static List<String> getComments(JsonPropertyDescription propertyDescriptionAnnotation) {
+        final String propertyDescriptionValue = propertyDescriptionAnnotation != null ? propertyDescriptionAnnotation.value() : null;
+        final List<String> propertyComments = Utils.splitMultiline(propertyDescriptionValue, false);
+        return propertyComments;
     }
 
 }
