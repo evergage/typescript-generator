@@ -2,7 +2,6 @@
 package cz.habarta.typescript.generator;
 
 import cz.habarta.typescript.generator.parser.SourceType;
-import cz.habarta.typescript.generator.util.Predicate;
 import cz.habarta.typescript.generator.util.Utils;
 import io.github.classgraph.ClassGraph;
 import io.github.classgraph.ScanResult;
@@ -14,6 +13,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -41,14 +41,14 @@ public class Input {
 
     public static Input fromClassNamesAndJaxrsApplication(List<String> classNames, List<String> classNamePatterns, String jaxrsApplicationClassName,
             boolean automaticJaxrsApplication, Predicate<String> isClassNameExcluded, URLClassLoader classLoader, boolean debug) {
-        return fromClassNamesAndJaxrsApplication(classNames, classNamePatterns, null, null,
+        return fromClassNamesAndJaxrsApplication(classNames, classNamePatterns, null, null, null,
             jaxrsApplicationClassName, automaticJaxrsApplication, isClassNameExcluded, classLoader,
             debug);
     }
 
     public static Input fromClassNamesAndJaxrsApplication(List<String> classNames,
         List<String> classNamePatterns, List<String> classesWithAnnotations,
-        List<String> classesImplementingInterfaces,
+        List<String> classesImplementingInterfaces, List<String> classesExtendingClasses,
         String jaxrsApplicationClassName,
         boolean automaticJaxrsApplication, Predicate<String> isClassNameExcluded,
         URLClassLoader classLoader, boolean debug) {
@@ -70,6 +70,17 @@ public class Input {
                     final List<SourceType<Type>> c = fromClassNames(
                         classesImplementingInterfaces.stream()
                             .flatMap(interf -> scanResult.getClassesImplementing(interf).getNames()
+                                .stream())
+                            .distinct()
+                            .collect(Collectors.toList())
+                    );
+                    types.addAll(c);
+                }
+                if (classesExtendingClasses != null) {
+                    final ScanResult scanResult = classpathScanner.getScanResult();
+                    final List<SourceType<Type>> c = fromClassNames(
+                        classesExtendingClasses.stream()
+                            .flatMap(superclass -> scanResult.getSubclasses(superclass).getNames()
                                 .stream())
                             .distinct()
                             .collect(Collectors.toList())
@@ -117,7 +128,10 @@ public class Input {
             if (scanResult == null) {
                 TypeScriptGenerator.getLogger().info("Scanning classpath");
                 final Date scanStart = new Date();
-                ClassGraph classGraph = new ClassGraph().enableAllInfo();
+                ClassGraph classGraph = new ClassGraph()
+                        .enableClassInfo()
+                        .enableAnnotationInfo()
+                        .ignoreClassVisibility();
                 if (classLoader != null) {
                     classGraph = classGraph.overrideClasspath((Object[])classLoader.getURLs());
                 }

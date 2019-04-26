@@ -4,7 +4,6 @@ package cz.habarta.typescript.generator.parser;
 import cz.habarta.typescript.generator.*;
 import cz.habarta.typescript.generator.compiler.EnumKind;
 import cz.habarta.typescript.generator.compiler.EnumMemberModel;
-import cz.habarta.typescript.generator.compiler.SymbolTable;
 import cz.habarta.typescript.generator.util.Utils;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
@@ -21,25 +20,27 @@ import java.util.stream.Stream;
 public abstract class ModelParser {
 
     protected final Settings settings;
-    protected final TypeProcessor typeProcessor;
     private final Javadoc javadoc;
-    private final Queue<SourceType<? extends Type>> typeQueue = new LinkedList<>();
+    private final Queue<SourceType<? extends Type>> typeQueue;
+    private final TypeProcessor commonTypeProcessor;
+    private final List<RestApplicationParser> restApplicationParsers;
+        
+    public static abstract class Factory {
 
-    public ModelParser(Settings settings, TypeProcessor typeProcessor) {
-        this(settings, typeProcessor, null);
+        public TypeProcessor getSpecificTypeProcessor() {
+            return null;
+        }
+
+        public abstract ModelParser create(Settings settings, TypeProcessor commonTypeProcessor, List<RestApplicationParser> restApplicationParsers);
+
     }
 
-    public ModelParser(Settings settings, TypeProcessor typeProcessor, List<String> parserSpecificExcludes) {
+    public ModelParser(Settings settings, TypeProcessor commonTypeProcessor, List<RestApplicationParser> restApplicationParsers) {
         this.settings = settings;
-        this.typeProcessor = new TypeProcessor.Chain(
-                new ExcludingTypeProcessor(parserSpecificExcludes),
-                typeProcessor
-        );
-        this.javadoc = new Javadoc(settings.javadocXmlFiles);
-    }
-
-    public TypeProcessor getSpecificTypeProcessor() {
-        return typeProcessor;
+        this.javadoc = new Javadoc(settings);
+        this.typeQueue = new LinkedList<>();
+        this.restApplicationParsers = restApplicationParsers;
+        this.commonTypeProcessor = commonTypeProcessor;
     }
 
     public Model parseModel(Type type) {
@@ -57,7 +58,6 @@ public abstract class ModelParser {
     }
 
     private Model parseQueue() {
-        final JaxrsApplicationParser jaxrsApplicationParser = new JaxrsApplicationParser(settings);
         final Collection<Type> parsedTypes = new ArrayList<>();  // do not use hashcodes, we can only count on `equals` since we use custom `ParameterizedType`s
         final List<BeanModel> beans = new ArrayList<>();
         final List<EnumModel> enums = new ArrayList<>();
@@ -68,14 +68,20 @@ public abstract class ModelParser {
             }
             parsedTypes.add(sourceType.type);
 
-            // JAX-RS resource
-            final JaxrsApplicationParser.Result jaxrsResult = jaxrsApplicationParser.tryParse(sourceType);
-            if (jaxrsResult != null) {
-                typeQueue.addAll(jaxrsResult.discoveredTypes);
+            // REST resource
+            boolean parsedByRestApplicationParser = false;
+            for (RestApplicationParser restApplicationParser : restApplicationParsers) {
+                final JaxrsApplicationParser.Result jaxrsResult = restApplicationParser.tryParse(sourceType);
+                if (jaxrsResult != null) {
+                    typeQueue.addAll(jaxrsResult.discoveredTypes);
+                    parsedByRestApplicationParser = true;
+                }
+            }
+            if (parsedByRestApplicationParser) {
                 continue;
             }
 
-            final TypeProcessor.Result result = processType(sourceType.type);
+            final TypeProcessor.Result result = commonTypeProcessor.processTypeInTemporaryContext(sourceType.type, null, settings);
             if (result != null) {
                 if (sourceType.type instanceof Class<?> && result.getTsType() instanceof TsType.ReferenceType) {
                     final Class<?> cls = (Class<?>) sourceType.type;
@@ -95,7 +101,10 @@ public abstract class ModelParser {
                 }
             }
         }
-        return new Model(beans, enums, jaxrsApplicationParser.getModel());
+        final List<RestApplicationModel> restModels = restApplicationParsers.stream()
+                .map(RestApplicationParser::getModel)
+                .collect(Collectors.toList());
+        return new Model(beans, enums, restModels);
     }
 
     protected abstract DeclarationModel parseClass(SourceType<Class<?>> sourceClass);
@@ -151,21 +160,12 @@ public abstract class ModelParser {
         typeQueue.add(sourceType);
     }
 
-    protected PropertyModel processTypeAndCreateProperty(String name, Type type, boolean optional, Class<?> usedInClass, Member originalMember, PropertyModel.PullProperties pullProperties) {
-        List<Class<?>> classes = discoverClassesUsedInType(type);
+    protected PropertyModel processTypeAndCreateProperty(String name, Type type, Object typeContext, boolean optional, Class<?> usedInClass, Member originalMember, PropertyModel.PullProperties pullProperties, List<String> comments) {
+        final List<Class<?>> classes = commonTypeProcessor.discoverClassesUsedInType(type, typeContext, settings);
         for (Class<?> cls : classes) {
             typeQueue.add(new SourceType<>(cls, usedInClass, name));
         }
-        return new PropertyModel(name, type, optional, originalMember, pullProperties, null);
-    }
-
-    private List<Class<?>> discoverClassesUsedInType(Type type) {
-        final TypeProcessor.Result result = processType(type);
-        return result != null ? result.getDiscoveredClasses() : Collections.<Class<?>>emptyList();
-    }
-
-    private TypeProcessor.Result processType(Type type) {
-        return typeProcessor.processType(type, new TypeProcessor.Context(new SymbolTable(settings), typeProcessor));
+        return new PropertyModel(name, type, optional, originalMember, pullProperties, typeContext, comments);
     }
 
     public static boolean containsProperty(List<PropertyModel> properties, String propertyName) {

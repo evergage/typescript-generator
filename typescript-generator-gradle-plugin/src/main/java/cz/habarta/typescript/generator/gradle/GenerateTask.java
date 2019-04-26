@@ -25,6 +25,7 @@ public class GenerateTask extends DefaultTask {
     public List<String> classPatterns;
     public List<String> classesWithAnnotations;
     public List<String> classesImplementingInterfaces;
+    public List<String> classesExtendingClasses;
     public String classesFromJaxrsApplication;
     public boolean classesFromAutomaticJaxrsApplication;
     public List<String> excludeClasses;
@@ -57,8 +58,13 @@ public class GenerateTask extends DefaultTask {
     public boolean ignoreSwaggerAnnotations;
     public boolean generateJaxrsApplicationInterface;
     public boolean generateJaxrsApplicationClient;
-    public JaxrsNamespacing jaxrsNamespacing;
-    public String jaxrsNamespacingAnnotation;
+    public boolean generateSpringApplicationInterface;
+    public boolean generateSpringApplicationClient;
+    public boolean scanSpringApplication;
+    @Deprecated public RestNamespacing jaxrsNamespacing;
+    @Deprecated public String jaxrsNamespacingAnnotation;
+    public RestNamespacing restNamespacing;
+    public String restNamespacingAnnotation;
     public String restResponseType;
     public String restOptionsType;
     public String customTypeProcessor;
@@ -66,6 +72,7 @@ public class GenerateTask extends DefaultTask {
     public boolean sortTypeDeclarations;
     public boolean noFileComment;
     public boolean noTslintDisable;
+    public boolean noEslintDisable;
     public List<File> javadocXmlFiles;
     public List<String> extensionClasses;
     public List<String> extensions;
@@ -152,8 +159,13 @@ public class GenerateTask extends DefaultTask {
             settings.ignoreSwaggerAnnotations = ignoreSwaggerAnnotations;
             settings.generateJaxrsApplicationInterface = generateJaxrsApplicationInterface;
             settings.generateJaxrsApplicationClient = generateJaxrsApplicationClient;
+            settings.generateSpringApplicationInterface = generateSpringApplicationInterface;
+            settings.generateSpringApplicationClient = generateSpringApplicationClient;
+            settings.scanSpringApplication = scanSpringApplication;
             settings.jaxrsNamespacing = jaxrsNamespacing;
             settings.setJaxrsNamespacingAnnotation(classLoader, jaxrsNamespacingAnnotation);
+            settings.restNamespacing = restNamespacing;
+            settings.setRestNamespacingAnnotation(classLoader, restNamespacingAnnotation);
             settings.restResponseType = restResponseType;
             settings.setRestOptionsType(restOptionsType);
             settings.loadCustomTypeProcessor(classLoader, customTypeProcessor);
@@ -161,6 +173,7 @@ public class GenerateTask extends DefaultTask {
             settings.sortTypeDeclarations = sortTypeDeclarations;
             settings.noFileComment = noFileComment;
             settings.noTslintDisable = noTslintDisable;
+            settings.noEslintDisable = noEslintDisable;
             settings.javadocXmlFiles = javadocXmlFiles;
             settings.loadExtensions(classLoader, Utils.concat(extensionClasses, extensions), extensionsWithConfiguration);
             settings.loadIncludePropertyAnnotations(classLoader, includePropertyAnnotations);
@@ -188,7 +201,8 @@ public class GenerateTask extends DefaultTask {
 
             // TypeScriptGenerator
             new TypeScriptGenerator(settings).generateTypeScript(
-                    Input.fromClassNamesAndJaxrsApplication(classes, classPatterns, classesWithAnnotations, classesImplementingInterfaces,
+                    Input.fromClassNamesAndJaxrsApplication(classes, classPatterns, classesWithAnnotations,
+                        classesImplementingInterfaces, classesExtendingClasses,
                         classesFromJaxrsApplication,
                         classesFromAutomaticJaxrsApplication, settings.getExcludeFilter(),
                         classLoader, loggingLevel == Logger.Level.Debug),
