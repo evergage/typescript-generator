@@ -5,6 +5,7 @@
 
 package cz.habarta.typescript.generator;
 
+import cz.habarta.typescript.generator.util.Pair;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
@@ -16,8 +17,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-
+import java.util.Optional;
+import java.util.function.Function;
+import java.util.function.Predicate;
 import static java.util.stream.Collectors.toMap;
+import java.util.stream.Stream;
 
 public class SAMTypeProcessor implements TypeProcessor {
 
@@ -30,19 +34,42 @@ public class SAMTypeProcessor implements TypeProcessor {
     @Override
     public Result processType(Type javaType, Context context) {
 
-        if (shouldProcessParameterizedType(javaType)) {
-            Result result = maybeProcessSAM(javaType, context, this::processParameterizedType);
-            if (result != null) {
-                return result;
+        Stream<Pair<Predicate<Type>, SAMProcessor>> processors = Stream.of(
+                Pair.of(this::shouldProcessParameterizedType, this::processParameterizedSAM),
+                Pair.of(this::shouldProcessNonParameterizedType, this::processNonParameterizedSAM));
+
+        Function<Pair<Predicate<Type>, SAMProcessor>, Optional<Result>> processorRunner = processor -> {
+            if (processor.getValue1().test(javaType)) {
+                return extractAndProcessSAM(javaType, context, processor.getValue2());
             }
+            return Optional.empty();
+        };
+
+        return processors
+                .map(processorRunner)
+                .filter(Optional::isPresent)
+                .findFirst()
+                .orElse(Optional.empty())
+                .orElse(null);
+    }
+
+    private Optional<Result> extractAndProcessSAM(Type javaType, Context ctx, SAMProcessor samProcessor) {
+        Class<?> clazz;
+        if (javaType instanceof ParameterizedType) {
+            clazz = (Class<?>) ((ParameterizedType) javaType).getRawType();
+        } else {
+            clazz = (Class<?>) javaType;
         }
 
-        //Allow non-paramaterized SAM classes to be emitted if annotated properly
-        if (shouldProcessNonParameterizedType(javaType)) {
-            return maybeProcessSAM(javaType, context, this::processNonParameterizedType);
-        }
+        return Arrays.stream(clazz.getMethods())
+                .filter(method -> Modifier.isAbstract(method.getModifiers()))
+                .map(sam -> samProcessor.process(javaType, sam, ctx))
+                .findFirst();
+    }
 
-        return null;
+    private boolean isValid(Class javaClass) {
+        return !emitSAMs.equals(EmitSAMStrictness.byAnnotationOnly) || Arrays.stream(javaClass.getAnnotations())
+                .anyMatch(a -> Objects.equals(a.annotationType(), FunctionalInterface.class));
     }
 
     private boolean shouldProcessParameterizedType(Type javaType) {
@@ -53,7 +80,7 @@ public class SAMTypeProcessor implements TypeProcessor {
         return false;
     }
 
-    private Result processParameterizedType(Type javaType, Method sam, Context context) {
+    private Result processParameterizedSAM(Type javaType, Method sam, Context context) {
         ParameterizedType parameterizedType = (ParameterizedType) javaType;
         Class<?> javaClass = (Class<?>) parameterizedType.getRawType();
         List<TypeVariable<? extends Class<?>>> typeVariables = Arrays.asList(javaClass.getTypeParameters());
@@ -78,39 +105,12 @@ public class SAMTypeProcessor implements TypeProcessor {
                 isValid((Class<?>) javaType);
     }
 
-    private Result processNonParameterizedType(Type type, Method method, Context context) {
+    private Result processNonParameterizedSAM(Type type, Method method, Context context) {
         List<TsParameter> parameters = new ArrayList<>();
         for (Type paramType : method.getParameterTypes()) {
             parameters.add(new TsParameter("arg" + parameters.size(), context.processType(paramType).getTsType()));
         }
         return new Result(new TsType.FunctionType(parameters, context.processType(method.getReturnType()).getTsType()));
-    }
-
-    private Result maybeProcessSAM(Type javaType, Context ctx, SAMProcessor samProcessor) {
-        Class<?> clazz;
-        if (javaType instanceof ParameterizedType) {
-            clazz = (Class<?>) ((ParameterizedType) javaType).getRawType();
-        } else {
-            clazz = (Class<?>) javaType;
-        }
-        Method sam = getSAMMaybe(clazz);
-        Result res = null;
-        if (sam != null) {
-            res = samProcessor.process(javaType, sam, ctx);
-        }
-        return res;
-    }
-
-    private boolean isValid(Class javaClass) {
-        return !emitSAMs.equals(EmitSAMStrictness.byAnnotationOnly) || Arrays.stream(javaClass.getAnnotations())
-                .anyMatch(a -> Objects.equals(a.annotationType(), FunctionalInterface.class));
-    }
-
-    private static Method getSAMMaybe(Class<?> clazz) {
-        return Arrays.stream(clazz.getMethods())
-                .filter(m -> Modifier.isAbstract(m.getModifiers()))
-                .findFirst()
-                .orElse(null);
     }
 
     interface SAMProcessor {
