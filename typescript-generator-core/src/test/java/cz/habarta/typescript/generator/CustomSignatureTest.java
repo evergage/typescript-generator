@@ -9,7 +9,9 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import javax.annotation.Nullable;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.stream.Collectors;
 
 public class CustomSignatureTest {
 
@@ -26,6 +28,16 @@ public class CustomSignatureTest {
                 "\n" +
                 "interface C2 {\n" +
                 "    answerOfLife?: number;\n" +
+                "}\n";
+        Assert.assertEquals(expected, output);
+    }
+
+    @Test
+    public void testCustomEnumAsStringUnion() {
+        String output = generateTypeScript(C3.class);
+        String expected = "\n" +
+                "interface C3 {\n" +
+                "    e1: \"One\" | \"Two\" | \"Three\";\n" +
                 "}\n";
         Assert.assertEquals(expected, output);
     }
@@ -75,6 +87,26 @@ public class CustomSignatureTest {
 
         @Nullable
         public Integer answerOfLife;
+    }
+
+    public static class C3 {
+        // Cannot work, value must be a compile-time constant
+        //@CustomSignature(value = "e1: " + Arrays.stream(E1.values()).map(E1::name).collect(Collectors.joining("|")))
+
+        // Can be accomplished via a static method reference
+        @CustomSignature("cz.habarta.typescript.generator.CustomSignatureTest$C3::e1CustomSignature")
+        public String e1;
+
+        @SuppressWarnings("unused - used by CustomSignature annotation")
+        public static String e1CustomSignature() {
+            return "e1: " + Arrays.stream(E1.values()).map(e -> '"' + e.name() + '"').collect(Collectors.joining(" | "));
+        }
+    }
+
+    public enum E1 {
+        One,
+        Two,
+        Three
     }
 
     public static class Bean1 {

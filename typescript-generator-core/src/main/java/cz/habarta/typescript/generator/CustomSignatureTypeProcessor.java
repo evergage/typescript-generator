@@ -46,7 +46,22 @@ public class CustomSignatureTypeProcessor implements TypeProcessor {
                 .filter(annotation -> annotation instanceof CustomSignature)
                 .map(annotation -> {
                     CustomSignature customSignature = (CustomSignature) annotation;
-                    return new Result(new CustomSignatureType(customSignature.value()), customSignature.classes());
+                    String value = customSignature.value();
+                    if (value.contains("::")) {
+                        // Static method reference
+                        String[] values = value.split("::");
+                        if (values.length != 2) {
+                            throw new RuntimeException("Unable to process CustomSignature value: " + value + "\nShould only contain :: once. ");
+                        }
+                        try {
+                            Class<?> clazz = Class.forName(values[0]);
+                            Method method = clazz.getDeclaredMethod(values[1]);
+                            value = (String) method.invoke(null);
+                        } catch (Throwable t) {
+                            throw new RuntimeException("Unable to process CustomSignature value: " + value, t);
+                        }
+                    }
+                    return new Result(new CustomSignatureType(value), customSignature.classes());
                 })
                 .findFirst()
                 .orElse(null);
