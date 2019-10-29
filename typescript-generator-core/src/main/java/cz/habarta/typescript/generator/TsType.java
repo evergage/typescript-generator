@@ -94,6 +94,26 @@ public abstract class TsType implements Emittable {
         }
     }
 
+    /** Explicit override of entire element's signature. */
+    public static class CustomSignatureType extends TsType {
+
+        public final String customSignature;
+
+        public CustomSignatureType(String customSignature) {
+            this.customSignature = customSignature;
+        }
+
+        @Override
+        public String format(Settings settings) {
+            return customSignature;
+        }
+
+        @Override
+        public OptionalType optional() {
+            throw new RuntimeException("optional() not available on CustomSignatureType");
+        }
+    }
+
     /**
      * Identifier which references some type, for example interface or type alias.
      */

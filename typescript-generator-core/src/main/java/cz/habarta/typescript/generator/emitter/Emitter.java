@@ -2,6 +2,7 @@
 package cz.habarta.typescript.generator.emitter;
 
 import cz.habarta.typescript.generator.*;
+import cz.habarta.typescript.generator.TsType.CustomSignatureType;
 import cz.habarta.typescript.generator.compiler.EnumMemberModel;
 import cz.habarta.typescript.generator.compiler.ModelCompiler;
 import cz.habarta.typescript.generator.util.Utils;
@@ -211,10 +212,17 @@ public class Emitter implements EmitterExtension.Writer {
     private void emitProperty(TsPropertyModel property) {
         emitComments(property.getComments());
         final TsType tsType = property.getTsType();
-        final String staticString = property.modifiers.isStatic ? "static " : "";
-        final String readonlyString = property.modifiers.isReadonly ? "readonly " : "";
-        final String questionMark = tsType instanceof TsType.OptionalType ? "?" : "";
-        writeIndentedLine(staticString + readonlyString + quoteIfNeeded(property.getName(), settings) + questionMark + ": " + tsType.format(settings) + ";");
+        final String signature;
+        if (tsType instanceof CustomSignatureType) {
+            signature = tsType.format(settings);
+        } else {
+            final String staticString = property.modifiers.isStatic ? "static " : "";
+            final String readonlyString = property.modifiers.isReadonly ? "readonly " : "";
+            final String questionMark = tsType instanceof TsType.OptionalType ? "?" : "";
+            signature = staticString + readonlyString + quoteIfNeeded(property.getName(), settings) + questionMark + ": " + tsType.format(settings);
+        }
+
+        writeIndentedLine(signature + ";");
     }
 
     public static String quoteIfNeeded(String name, Settings settings) {
@@ -240,11 +248,17 @@ public class Emitter implements EmitterExtension.Writer {
     private void emitCallable(TsCallableModel method) {
         writeNewLine();
         emitComments(method.getComments());
-        final String staticString = method.getModifiers().isStatic ? "static " : "";
-        final String typeParametersString = method.getTypeParameters().isEmpty() ? "" : "<" + formatList(settings, method.getTypeParameters()) + ">";
-        final String parametersString = formatParameterList(method.getParameters(), true);
-        final String type = method.getReturnType() != null ? ": " + method.getReturnType() : "";
-        final String signature = staticString + method.getName() + typeParametersString + parametersString + type;
+        final String signature;
+        if (method.getReturnType() instanceof CustomSignatureType) {
+            signature = method.getReturnType().format(settings);
+        } else {
+            final String staticString = method.getModifiers().isStatic ? "static " : "";
+            final String typeParametersString = method.getTypeParameters().isEmpty() ? "" : "<" + formatList(settings, method.getTypeParameters()) + ">";
+            final String parametersString = formatParameterList(method.getParameters(), true);
+            final String type = method.getReturnType() != null ? ": " + method.getReturnType().format(settings) : "";
+            signature = staticString + method.getName() + typeParametersString + parametersString + type;
+        }
+
         if (method.getBody() != null) {
             writeIndentedLine(signature + " {");
             indent++;
