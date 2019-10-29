@@ -69,16 +69,16 @@ public class CustomSignatureTest {
     // todo: add support and test for default methods on interface
 
     public static class C1 {
-        @CustomSignature("someStr: string")
+        @CustomSignatureVerbatim("someStr: string")
         public String someString;
 
-        @CustomSignature("readonly someInt?: number")
+        @CustomSignatureVerbatim("readonly someInt?: number")
         public Integer someInteger;
 
-        @CustomSignature("static readonly someNum: number")
+        @CustomSignatureVerbatim("static readonly someNum: number")
         public static Number someNumber;
 
-        @CustomSignature(value = "someSeeTwo: C2", classes = { C2.class })
+        @CustomSignatureVerbatim(value = "someSeeTwo: C2", classes = { C2.class })
         public C2 someC2;
     }
 
@@ -94,7 +94,7 @@ public class CustomSignatureTest {
         //@CustomSignature(value = "e1: " + Arrays.stream(E1.values()).map(E1::name).collect(Collectors.joining("|")))
 
         // Can be accomplished via a static method reference
-        @CustomSignature("cz.habarta.typescript.generator.CustomSignatureTest$C3::e1CustomSignature")
+        @CustomSignatureMethodReference("cz.habarta.typescript.generator.CustomSignatureTest$C3::e1CustomSignature")
         public String e1;
 
         @SuppressWarnings("unused - used by CustomSignature annotation")
@@ -109,11 +109,12 @@ public class CustomSignatureTest {
         Three
     }
 
+    // todo: ability to keep bean getter/setter functions instead of making into a property (won't work with graal without routing)
     public static class Bean1 {
         private String string;
         private Integer integer;
 
-        @CustomSignature("someStr: string")
+        @CustomSignatureVerbatim("someStr: string")
         public String getString() {
             return string;
         }
@@ -123,7 +124,7 @@ public class CustomSignatureTest {
         }
 
         // ModelCompiler doesn't currently detect lack of setter, but we can add readonly easily via CustomSignature
-        @CustomSignature("readonly someInt?: number")
+        @CustomSignatureVerbatim("readonly someInt?: number")
         @Nullable
         public Integer getInteger() {
             return integer;
@@ -133,10 +134,10 @@ public class CustomSignatureTest {
     // ModelParser doesn't currently detect param names and optional annotations, and ignores
     // optional annotations on return type, but we can overcome these via CustomSignature
     public static abstract class Bean2 {
-        @CustomSignature("fetchSomeString(one: string, two: number|undefined): string")
+        @CustomSignatureVerbatim("fetchSomeString(one: string, two: number|undefined): string")
         public abstract String fetchSomeString(String one, @Nullable Integer two);
 
-        @CustomSignature("calculateSomeInt(one: string, two: number|undefined): number|undefined")
+        @CustomSignatureVerbatim("calculateSomeInt(one: string, two: number|undefined): number|undefined")
         @Nullable
         public abstract Integer calculateSomeInt(String one, @Nullable Integer two);
     }

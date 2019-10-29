@@ -16,9 +16,11 @@ import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
 import java.util.Arrays;
+import java.util.Objects;
 
 /**
- * If {@link CustomSignature} annotation is present on element, returns {@link CustomSignatureType}.
+ * Returns {@link CustomSignatureType} if supported annotations found on element:
+ * {@link CustomSignatureVerbatim} or {@link CustomSignatureMethodReference}
  * - Java field will use {@link TsPropertyModel#getTsType()}
  * - Java method/constructor will use {@link TsCallableModel#getReturnType()}
  */
@@ -43,26 +45,35 @@ public class CustomSignatureTypeProcessor implements TypeProcessor {
         }
 
         return Arrays.stream(annotations)
-                .filter(annotation -> annotation instanceof CustomSignature)
                 .map(annotation -> {
-                    CustomSignature customSignature = (CustomSignature) annotation;
-                    String value = customSignature.value();
-                    if (value.contains("::")) {
-                        // Static method reference
+                    if (annotation instanceof CustomSignatureVerbatim) {
+                        CustomSignatureVerbatim customSignature = (CustomSignatureVerbatim) annotation;
+                        String value = customSignature.value();
+                        //noinspection ConstantConditions
+                        if (value == null || value.isEmpty()) {
+                            throw new RuntimeException("CustomSignatureVerbatim value is required.");
+                        }
+                        return new Result(new CustomSignatureType(value), customSignature.classes());
+                    } else if (annotation instanceof CustomSignatureMethodReference) {
+                        CustomSignatureMethodReference customSignature = (CustomSignatureMethodReference) annotation;
+                        String value = customSignature.value();
                         String[] values = value.split("::");
                         if (values.length != 2) {
-                            throw new RuntimeException("Unable to process CustomSignature value: " + value + "\nShould only contain :: once. ");
+                            throw new RuntimeException("Unable to process CustomSignatureMethodReference value: " + value + "\nShould contain \"::\" exactly once.");
                         }
                         try {
                             Class<?> clazz = Class.forName(values[0]);
                             Method method = clazz.getDeclaredMethod(values[1]);
                             value = (String) method.invoke(null);
                         } catch (Throwable t) {
-                            throw new RuntimeException("Unable to process CustomSignature value: " + value, t);
+                            throw new RuntimeException("Unable to process CustomSignatureMethodReference value: " + value, t);
                         }
+                        return new Result(new CustomSignatureType(value), customSignature.classes());
+                    } else {
+                        return null;
                     }
-                    return new Result(new CustomSignatureType(value), customSignature.classes());
                 })
+                .filter(Objects::nonNull)
                 .findFirst()
                 .orElse(null);
     }
