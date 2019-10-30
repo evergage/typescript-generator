@@ -142,7 +142,7 @@ public class TypeScriptGenerator {
         }
         processors.add(new CustomSignatureTypeProcessor());
         processors.add(new CustomMappingTypeProcessor(settings.customTypeMappings));
-        if (!settings.emitSAMs.equals(EmitSAMStrictness.noEmitSAM)) {
+        if (settings.emitSAMs != null && !settings.emitSAMs.equals(EmitSAMStrictness.noEmitSAM)) {
             processors.add(new SAMTypeProcessor(settings.emitSAMs));
         }
         processors.addAll(specificTypeProcessors);
