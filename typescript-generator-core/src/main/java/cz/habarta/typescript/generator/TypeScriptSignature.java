@@ -13,12 +13,12 @@ import java.lang.annotation.Target;
 /** Provides the TypeScript signature to output verbatim for an element. */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.FIELD, ElementType.METHOD, ElementType.CONSTRUCTOR})
-public @interface CustomSignatureVerbatim {
+public @interface TypeScriptSignature {
 
     /** @return The custom TypeScript signature to output verbatim for this element. */
     String value();
 
     /** @return Any classes the generator should processes as if they were 'discovered' in this element. */
-    Class<?>[] classes() default {};
+    Class<?>[] additionalClassesToProcess() default {};
 
 }

@@ -72,12 +72,12 @@ public interface TypeProcessor {
 
         public Result(TsType tsType, List<Class<?>> discoveredClasses) {
             this.tsType = tsType;
-            this.discoveredClasses = discoveredClasses;
+            this.discoveredClasses = discoveredClasses != null ? discoveredClasses : Collections.emptyList();
         }
 
         public Result(TsType tsType, Class<?>... discoveredClasses) {
             this.tsType = tsType;
-            this.discoveredClasses = Arrays.asList(discoveredClasses);
+            this.discoveredClasses = discoveredClasses != null ? Arrays.asList(discoveredClasses) : Collections.emptyList();
         }
 
         public TsType getTsType() {

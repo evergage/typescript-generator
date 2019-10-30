@@ -20,7 +20,7 @@ import java.util.Objects;
 
 /**
  * Returns {@link CustomSignatureType} if supported annotations found on element:
- * {@link CustomSignatureVerbatim} or {@link CustomSignatureMethodReference}
+ * {@link TypeScriptSignature} or {@link TypeScriptSignatureViaStaticMethod}
  * - Java field will use {@link TsPropertyModel#getTsType()}
  * - Java method/constructor will use {@link TsCallableModel#getReturnType()}
  */
@@ -44,31 +44,33 @@ public class CustomSignatureTypeProcessor implements TypeProcessor {
             return null;
         }
 
+        Class<?> declaringClass = member.getDeclaringClass();
         return Arrays.stream(annotations)
                 .map(annotation -> {
-                    if (annotation instanceof CustomSignatureVerbatim) {
-                        CustomSignatureVerbatim customSignature = (CustomSignatureVerbatim) annotation;
-                        String value = customSignature.value();
+                    if (annotation instanceof TypeScriptSignature) {
+                        TypeScriptSignature signatureAnnotation = (TypeScriptSignature) annotation;
+                        String signature = signatureAnnotation.value();
                         //noinspection ConstantConditions
-                        if (value == null || value.isEmpty()) {
-                            throw new RuntimeException("CustomSignatureVerbatim value is required.");
+                        if (signature == null || signature.isEmpty()) {
+                            throw new RuntimeException("TypeScriptSignature value is required.");
                         }
-                        return new Result(new CustomSignatureType(value), customSignature.classes());
-                    } else if (annotation instanceof CustomSignatureMethodReference) {
-                        CustomSignatureMethodReference customSignature = (CustomSignatureMethodReference) annotation;
-                        String value = customSignature.value();
-                        String[] values = value.split("::");
-                        if (values.length != 2) {
-                            throw new RuntimeException("Unable to process CustomSignatureMethodReference value: " + value + "\nShould contain \"::\" exactly once.");
+                        return new Result(new CustomSignatureType(signature), signatureAnnotation.additionalClassesToProcess());
+                    } else if (annotation instanceof TypeScriptSignatureViaStaticMethod) {
+                        TypeScriptSignatureViaStaticMethod signatureAnnotation = (TypeScriptSignatureViaStaticMethod) annotation;
+                        String staticMethodName = signatureAnnotation.value();
+                        Class<?> clazz = signatureAnnotation.declaringClass();
+                        if (clazz == void.class) {
+                            clazz = declaringClass;
                         }
                         try {
-                            Class<?> clazz = Class.forName(values[0]);
-                            Method method = clazz.getDeclaredMethod(values[1]);
-                            value = (String) method.invoke(null);
+                            Method method = clazz.getDeclaredMethod(staticMethodName);
+                            TypeScriptSignatureResult result = (TypeScriptSignatureResult) method.invoke(null);
+                            return new Result(new CustomSignatureType(result.signature()), result.additionalClassesToProcess());
                         } catch (Throwable t) {
-                            throw new RuntimeException("Unable to process CustomSignatureMethodReference value: " + value, t);
+                            throw new RuntimeException(
+                                    "Unable to process TypeScriptSignatureViaStaticMethod, static method name: "
+                                            + staticMethodName + " class: " + clazz.getCanonicalName(), t);
                         }
-                        return new Result(new CustomSignatureType(value), customSignature.classes());
                     } else {
                         return null;
                     }

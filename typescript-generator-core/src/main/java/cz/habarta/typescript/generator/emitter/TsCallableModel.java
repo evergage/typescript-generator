@@ -5,7 +5,7 @@ import cz.habarta.typescript.generator.TsType;
 import java.util.*;
 
 
-public class TsCallableModel {
+public class TsCallableModel implements Comparable<TsCallableModel> {
     
     private final String name;
     private final TsModifierFlags modifiers;
@@ -54,4 +54,9 @@ public class TsCallableModel {
         return comments;
     }
 
+    @Override
+    public int compareTo(TsCallableModel o) {
+        // Maybe also consider parameters/names etc
+        return name.compareTo(o.getName());
+    }
 }

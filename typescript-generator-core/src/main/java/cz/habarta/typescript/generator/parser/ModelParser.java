@@ -179,17 +179,33 @@ public abstract class ModelParser {
 
     protected void processMethods(SourceType<Class<?>> sourceClass, List<PropertyModel> properties,
                                   List<MethodModel> methods) {
+        if (!settings.emitAbstractMethodsInBeans &&
+                !settings.emitDefaultMethods &&
+                !settings.emitStaticMethods &&
+                !settings.emitOtherMethods ) {
+            return;
+        }
+
         Set<String> propertyMethods = findMethodNamesForMethodProperties(properties);
 
         Method[] declaredMethods = sourceClass.type.getDeclaredMethods();
         for (Method declaredMethod : declaredMethods) {
-            if (propertyMethods.contains(declaredMethod.getName())) {
+            if (declaredMethod.isSynthetic() || propertyMethods.contains(declaredMethod.getName())) {
                 continue;
             }
 
-            // todo: how about default methods.  include/exclude at this level?
-            // Only include abstract methods
-            if (!Modifier.isAbstract(declaredMethod.getModifiers())) {
+            if (Modifier.isAbstract(declaredMethod.getModifiers()) && !settings.emitAbstractMethodsInBeans) {
+                continue;
+            } else if (declaredMethod.isDefault() && !settings.emitDefaultMethods) {
+                continue;
+            } else if (Modifier.isStatic(declaredMethod.getModifiers()) && !settings.emitStaticMethods) {
+                continue;
+            } else if (!settings.emitOtherMethods) {
+                continue;
+            }
+
+            // todo: consider separate include/exclude or rename 'member' instead of 'property' annotations?
+            if (!isAnnotatedPropertyIncluded(declaredMethod::getDeclaredAnnotation, sourceClass.type.getName() + "." + declaredMethod.getName())) {
                 continue;
             }
 

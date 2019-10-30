@@ -103,7 +103,8 @@ public class ModelCompiler {
         tsModel = createAndUseTaggedUnions(symbolTable, tsModel);
 
         // optional properties
-        tsModel = transformOptionalProperties(symbolTable, tsModel); // todo: add support for optional/default methods?
+        tsModel = transformOptionalProperties(symbolTable, tsModel);
+        // todo: similar for methods with optional return values?
 
         tsModel = applyExtensionTransformers(symbolTable, tsModel, TransformationPhase.BeforeSymbolResolution, extensionTransformers);
         symbolTable.resolveSymbolNames();
@@ -253,10 +254,10 @@ public class ModelCompiler {
                         .collect(Collectors.toList());
 
         return new TsMethodModel(method.getName(),
-                                 TsModifierFlags.None,
+                                 TsModifierFlags.None.setStatic(Modifier.isStatic(method.getMethod().getModifiers())),
                                  null,
                                  parameters,
-                                 // todo: if optional annotation, return type should be union with undefined or null (depending on settings)?
+                                 // todo : if return type has optional annotation, should be union with undefined or null (depending on settings)?  prob set optional here and handle in emit? see what done for props
                                  typeFromJava(symbolTable, method.getReturnType(), method.getMethod(), null, method.getName(), method.getOriginClass()),
                                  null,
                                  method.getComments());
@@ -872,6 +873,7 @@ public class ModelCompiler {
         if (settings.sortDeclarations) {
             for (TsBeanModel bean : beans) {
                 Collections.sort(bean.getProperties());
+                Collections.sort(bean.getMethods());
             }
         }
         if (settings.sortDeclarations || settings.sortTypeDeclarations) {

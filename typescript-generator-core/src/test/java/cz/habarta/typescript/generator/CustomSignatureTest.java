@@ -5,116 +5,167 @@
 
 package cz.habarta.typescript.generator;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 import javax.annotation.Nullable;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.stream.Collectors;
 
+@SuppressWarnings("unused")
 public class CustomSignatureTest {
+
+    private TypeScriptGenerator typeScriptGenerator;
+
+    @Before
+    public void initialize() {
+        final Settings settings = TestUtils.settings();
+        //settings.emitSAMs = EmitSAMStrictness.byAnnotationOnly;
+        settings.emitAbstractMethodsInBeans = true;
+        settings.emitDefaultMethods = true;
+        settings.emitStaticMethods = true;
+        settings.emitOtherMethods = true;
+        settings.outputFileType = TypeScriptFileType.implementationFile;
+        settings.mapClasses = ClassMapping.asInterfaces;
+        settings.optionalAnnotations = Collections.singletonList(Nullable.class);
+        settings.sortDeclarations = true;
+        settings.sortTypeDeclarations = true;
+        settings.excludePropertyAnnotations = Collections.singletonList(ApiIgnore.class);
+        typeScriptGenerator = new TypeScriptGenerator(settings);
+    }
 
     @Test
     public void testCustomFieldSignatures() {
-        String output = generateTypeScript(C1.class);
         // todo: jackson doesn't list static fields as props
-        String expected = "\n" +
-                "interface C1 {\n" +
-                "    someStr: string;\n" +
+        assertExpectedOutputforClass(TestClassBasic.class,"\n" +
+                "interface TestClassBasic {\n" +
                 "    readonly someInt?: number;\n" +
-                "    someSeeTwo: C2;\n" +
+                "    someStr: string;\n" +
+                "    someTest: TestClassProvidedViaAnnotation;\n" +
                 "}\n" +
                 "\n" +
-                "interface C2 {\n" +
+                "interface TestClassProvidedViaAnnotation {\n" +
                 "    answerOfLife?: number;\n" +
-                "}\n";
-        Assert.assertEquals(expected, output);
+                "}\n");
     }
 
     @Test
     public void testCustomEnumAsStringUnion() {
-        String output = generateTypeScript(C3.class);
-        String expected = "\n" +
-                "interface C3 {\n" +
-                "    e1: \"One\" | \"Two\" | \"Three\";\n" +
-                "}\n";
-        Assert.assertEquals(expected, output);
+        assertExpectedOutputforClass(TestClassWithSignatureViaStaticMethod.class, "\n" +
+                "interface TestClassWithSignatureViaStaticMethod {\n" +
+                "    test: \"One\" | \"Two\" | \"Three\";\n" +
+                "}\n");
     }
 
     @Test
-    public void testCustomGetterSetterSignatures() {
-        String output = generateTypeScript(Bean1.class);
-        String expected = "\n" +
-                "interface Bean1 {\n" +
-                "    someStr: string;\n" +
+    public void testCustomBeanProperties() {
+        assertExpectedOutputforClass(TestBean.class, "\n" +
+                "interface TestBean {\n" +
                 "    readonly someInt?: number;\n" +
-                "}\n";
-        Assert.assertEquals(expected, output);
+                "    someStr: string;\n" +
+                "}\n");
+    }
+
+    @Test
+    public void testBeanKeepGettersSettersAsMethods() {
+        assertExpectedOutputforClass(TestBeanAvoidProps.class, "\n" +
+                "interface TestBeanAvoidProps {\n" +
+                "\n" +
+                "    getInteger(): number;\n" +
+                "\n" +
+                "    getString(): string;\n" +
+                "\n" +
+                "    setString(str: string): void;;\n" +
+                "}\n");
     }
 
     @Test
     public void testCustomAbstractMethods() {
-        String output = generateTypeScript(Bean2.class);
-        String expected = "\n" +
-                "interface Bean2 {\n" +
-                "\n" +
-                "    fetchSomeString(one: string, two: number|undefined): string;\n" +
+        assertExpectedOutputforClass(TestClassAbstract.class, "\n" +
+                "interface TestClassAbstract {\n" +
                 "\n" +
                 "    calculateSomeInt(one: string, two: number|undefined): number|undefined;\n" +
-                "}\n";
-        Assert.assertEquals(expected, output);
+                "\n" +
+                "    fetchSomeString(one: string, two: number|undefined): string;\n" +
+                "}\n");
     }
 
-    // todo: add support and test for default methods on interface
+    @Test
+    public void testInterface() {
+        assertExpectedOutputforClass(TestInterface.class, "\n" +
+                "interface TestInterface {\n" +
+                "\n" +
+                "    calculateSomeInt(one: string, two: number | null): number | null;\n" +
+                "\n" +
+                "    doStuffForInteger?(one: string, two: number | null): number | null;\n" +
+                "\n" +
+                "    doStuffForString?(one: string, two: number): string;\n" +
+                "\n" +
+                "    fetchSomeString(arg0: string, arg1: number): string;\n" +
+                "}\n");
+    }
 
-    public static class C1 {
-        @CustomSignatureVerbatim("someStr: string")
+    @Test
+    public void testInterfaceMethodBuildingUpOptionalParams() {
+        assertExpectedOutputforClass(TestInterfaceWithOptionalParams.class, "\n" +
+                "interface TestInterfaceWithOptionalParams {\n" +
+                "\n" +
+                "    doStuff(str: string, integer?: number, bool?: boolean): void;\n" +
+                "}\n");
+    }
+
+    public static class TestClassBasic {
+        @TypeScriptSignature("someStr: string")
         public String someString;
 
-        @CustomSignatureVerbatim("readonly someInt?: number")
+        @TypeScriptSignature("readonly someInt?: number")
         public Integer someInteger;
 
-        @CustomSignatureVerbatim("static readonly someNum: number")
+        @TypeScriptSignature("static readonly someNum: number")
         public static Number someNumber;
 
-        @CustomSignatureVerbatim(value = "someSeeTwo: C2", classes = { C2.class })
-        public C2 someC2;
+        @TypeScriptSignature(value = "someTest: TestClassProvidedViaAnnotation", additionalClassesToProcess = { TestClassProvidedViaAnnotation.class })
+        public TestClassProvidedViaAnnotation test;
     }
 
-    public static class C2 {
+    public static class TestClassProvidedViaAnnotation {
         public static final String greeting = "hello";
 
         @Nullable
         public Integer answerOfLife;
     }
 
-    public static class C3 {
+    public static class TestClassWithSignatureViaStaticMethod {
         // Cannot work, value must be a compile-time constant
-        //@CustomSignature(value = "e1: " + Arrays.stream(E1.values()).map(E1::name).collect(Collectors.joining("|")))
+        //@TypeScriptSignature(value = "e1: " + Arrays.stream(E1.values()).map(E1::name).collect(Collectors.joining("|")))
 
         // Can be accomplished via a static method reference
-        @CustomSignatureMethodReference("cz.habarta.typescript.generator.CustomSignatureTest$C3::e1CustomSignature")
-        public String e1;
+        @TypeScriptSignatureViaStaticMethod("testCustomSignature")
+        public String test;
 
-        @SuppressWarnings("unused - used by CustomSignature annotation")
-        public static String e1CustomSignature() {
-            return "e1: " + Arrays.stream(E1.values()).map(e -> '"' + e.name() + '"').collect(Collectors.joining(" | "));
+        @ApiIgnore
+        public static TypeScriptSignatureResult testCustomSignature() {
+            return () ->
+                    "test: " + Arrays.stream(TestEnum.values()).map(e -> '"' + e.name() + '"').collect(Collectors.joining(" | "));
         }
     }
 
-    public enum E1 {
+    public enum TestEnum {
         One,
         Two,
         Three
     }
 
-    // todo: ability to keep bean getter/setter functions instead of making into a property (won't work with graal without routing)
-    public static class Bean1 {
+    public static class TestBean {
         private String string;
         private Integer integer;
 
-        @CustomSignatureVerbatim("someStr: string")
+        @TypeScriptSignature("someStr: string")
         public String getString() {
             return string;
         }
@@ -123,32 +174,78 @@ public class CustomSignatureTest {
             this.string = string;
         }
 
-        // ModelCompiler doesn't currently detect lack of setter, but we can add readonly easily via CustomSignature
-        @CustomSignatureVerbatim("readonly someInt?: number")
+        // ModelCompiler doesn't currently detect lack of setter, but we can add readonly easily via annotation
+        @TypeScriptSignature("readonly someInt?: number")
         @Nullable
         public Integer getInteger() {
             return integer;
         }
     }
 
+    public static class TestBeanAvoidProps {
+        private String string;
+        private Integer integer;
+
+        @JsonIgnore
+        public String getString() {
+            return string;
+        }
+
+        @TypeScriptSignature("setString(str: string): void;")
+        public void setString(String string) {
+            this.string = string;
+        }
+
+        @JsonIgnore
+        public Integer getInteger() {
+            return integer;
+        }
+    }
+
     // ModelParser doesn't currently detect param names and optional annotations, and ignores
-    // optional annotations on return type, but we can overcome these via CustomSignature
-    public static abstract class Bean2 {
-        @CustomSignatureVerbatim("fetchSomeString(one: string, two: number|undefined): string")
+    // optional annotations on return type, but we can overcome these via annotation
+    public static abstract class TestClassAbstract {
+        @TypeScriptSignature("fetchSomeString(one: string, two: number|undefined): string")
         public abstract String fetchSomeString(String one, @Nullable Integer two);
 
-        @CustomSignatureVerbatim("calculateSomeInt(one: string, two: number|undefined): number|undefined")
+        @TypeScriptSignature("calculateSomeInt(one: string, two: number|undefined): number|undefined")
         @Nullable
         public abstract Integer calculateSomeInt(String one, @Nullable Integer two);
     }
 
-    private String generateTypeScript(Class<?> clazz) {
-        final Settings settings = TestUtils.settings();
-        //settings.emitSAMs = EmitSAMStrictness.byAnnotationOnly;
-        settings.emitAbstractMethodsInBeans = true;
-        settings.outputFileType = TypeScriptFileType.implementationFile;
-        settings.mapClasses = ClassMapping.asInterfaces;
-        settings.optionalAnnotations = Collections.singletonList(Nullable.class);
-        return new TypeScriptGenerator(settings).generateTypeScript(Input.from(clazz));
+    public interface TestInterface {
+        String fetchSomeString(String one, Integer two);
+
+        // ModelParser doesn't currently detect optional return value, param name/nullable, so using annotation
+        @TypeScriptSignature("calculateSomeInt(one: string, two: number | null): number | null")
+        @Nullable
+        Integer calculateSomeInt(String one, @Nullable Integer two);
+
+        // ModelParser doesn't currently detect optional method via default, so using annotation
+        @TypeScriptSignature("doStuffForString?(one: string, two: number): string")
+        default String doStuffForString(String one, Integer two) { return ""; }
+
+        @TypeScriptSignature("doStuffForInteger?(one: string, two: number | null): number | null")
+        @Nullable
+        default Integer doStuffForInteger(String one, @Nullable Integer two) { return null; }
     }
+
+    public interface TestInterfaceWithOptionalParams {
+        @TypeScriptSignature("doStuff(str: string, integer?: number, bool?: boolean): void")
+        void doStuff(String string);
+
+        @ApiIgnore
+        void doStuff(String string, Integer integer);
+
+        @ApiIgnore
+        void doStuff(String string, Integer integer, Boolean bool);
+    }
+
+    private void assertExpectedOutputforClass(Class<?> clazz, String expectedOutput) {
+        String output = typeScriptGenerator.generateTypeScript(Input.from(clazz));
+        Assert.assertEquals(expectedOutput, output);
+    }
+
+    @Retention(RetentionPolicy.RUNTIME)
+    @interface ApiIgnore {}
 }

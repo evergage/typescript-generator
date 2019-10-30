@@ -16,21 +16,20 @@ import java.lang.annotation.Target;
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.FIELD, ElementType.METHOD, ElementType.CONSTRUCTOR})
-public @interface CustomSignatureMethodReference {
+public @interface TypeScriptSignatureViaStaticMethod {
 
     /**
-     * @return String reference to a static method that will dynamically provide the TypeScript signature to use.
-     *         Should be in same class as this element, to easily guarantee the class will be found.
+     * @return Name of the static method that will dynamically provide the TypeScript signature to use.
      *         For example:
      *         <pre>{@code
      *         package com.example;
      *
      *         public class MyClass {
-     *             @CustomSignatureMethodReference("com.example.MyClass::myEnumCustomSignature")
+     *             @TypeScriptSignatureViaStaticMethod("myEnumCustomSignature")
      *             public String myEnum;
      *
-     *             public static String myEnumCustomSignature() {
-     *                 return "myEnum: " + Arrays.stream(MyEnum.values()).map(e -> '"' + e.name() + '"').collect(Collectors.joining(" | "));
+     *             public static TypeScriptSignatureResult myEnumCustomSignature() {
+     *                 return () -> "myEnum: " + Arrays.stream(MyEnum.values()).map(e -> '"' + e.name() + '"').collect(Collectors.joining(" | "));
      *             }
      *         }
      *
@@ -43,7 +42,10 @@ public @interface CustomSignatureMethodReference {
      */
     String value();
 
-    /** @return Any classes the generator should processes as if they were 'discovered' in this element. */
-    Class<?>[] classes() default {};
+    /**
+     * The class declaring the static method name provided by {@link #value()}.
+     * Defaults to using the class containing the element using this annotation (via marker void.class).
+     */
+    Class<?> declaringClass() default void.class;
 
 }
