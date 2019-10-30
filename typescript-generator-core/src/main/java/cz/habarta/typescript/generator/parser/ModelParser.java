@@ -194,12 +194,18 @@ public abstract class ModelParser {
                 continue;
             }
 
-            if (Modifier.isAbstract(declaredMethod.getModifiers()) && !settings.emitAbstractMethodsInBeans) {
-                continue;
-            } else if (declaredMethod.isDefault() && !settings.emitDefaultMethods) {
-                continue;
-            } else if (Modifier.isStatic(declaredMethod.getModifiers()) && !settings.emitStaticMethods) {
-                continue;
+            if (Modifier.isAbstract(declaredMethod.getModifiers())) {
+                if (!settings.emitAbstractMethodsInBeans) {
+                    continue;
+                }
+            } else if (declaredMethod.isDefault()) {
+                if (!settings.emitDefaultMethods) {
+                    continue;
+                }
+            } else if (Modifier.isStatic(declaredMethod.getModifiers())) {
+                if (!settings.emitStaticMethods) {
+                    continue;
+                }
             } else if (!settings.emitOtherMethods) {
                 continue;
             }
