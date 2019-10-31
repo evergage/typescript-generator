@@ -52,6 +52,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -209,7 +210,16 @@ public class Jackson2Parser extends ModelParser {
 
                 final Jackson2TypeContext jackson2TypeContext = new Jackson2TypeContext(this, beanPropertyWriter);
 
-                if (!isAnnotatedPropertyIncluded(beanPropertyWriter::getAnnotation, sourceClass.type.getName() + "." + beanPropertyWriter.getName())) {
+                Function<Class<? extends Annotation>, Annotation> annotationFinder = annotationClass -> {
+                    Annotation annotation = beanPropertyWriter.getAnnotation(annotationClass);
+                    if (annotation == null) {
+                        // If not found, fallback to checking class level
+                        annotation = sourceClass.type.getAnnotation(annotationClass);
+                    }
+                    return annotation;
+                };
+                if (!isAnnotatedPropertyIncluded(
+                        annotationFinder, sourceClass.type.getName() + "." + beanPropertyWriter.getName())) {
                     continue;
                 }
                 final boolean optional = settings.optionalProperties == OptionalProperties.useLibraryDefinition

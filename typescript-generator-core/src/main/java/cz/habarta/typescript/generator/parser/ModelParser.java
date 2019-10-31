@@ -211,7 +211,16 @@ public abstract class ModelParser {
             }
 
             // todo: consider separate include/exclude or rename 'member' instead of 'property' annotations?
-            if (!isAnnotatedPropertyIncluded(declaredMethod::getDeclaredAnnotation, sourceClass.type.getName() + "." + declaredMethod.getName())) {
+            Function<Class<? extends Annotation>, Annotation> annotationFinder = annotationClass -> {
+                Annotation annotation = declaredMethod.getAnnotation(annotationClass);
+                if (annotation == null) {
+                    // If not found, fallback to checking class level
+                    annotation = declaredMethod.getDeclaringClass().getAnnotation(annotationClass);
+                }
+                return annotation;
+            };
+            if (!isAnnotatedPropertyIncluded(
+                    annotationFinder, sourceClass.type.getName() + "." + declaredMethod.getName())) {
                 continue;
             }
 
