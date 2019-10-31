@@ -188,7 +188,6 @@ public class ModelCompiler {
         final List<TsType> extendsList = new ArrayList<>();
         final List<TsType> implementsList = new ArrayList<>();
 
-        // todo: consider annotation support for class/interface declaration?
         final TsType parentType = typeFromJava(symbolTable, bean.getParent());
         if (parentType != null && !parentType.equals(TsType.Any)) {
             final boolean isParentMappedToClass = mappedToClass(getOriginClass(symbolTable, parentType));

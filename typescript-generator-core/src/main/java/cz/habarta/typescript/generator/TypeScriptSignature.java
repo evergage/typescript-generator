@@ -10,9 +10,15 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-/** Provides the TypeScript signature to output verbatim for an element. */
+/**
+ * Provides the TypeScript signature to output verbatim for an element,
+ * not including any implementation. For example, this annotation can be used to change an interface
+ * signature before the implementation begins with the `{` character. The methods within could control
+ * their individual signatures via annotations.
+ * @see TypeScriptSignatureViaStaticMethod
+ */
 @Retention(RetentionPolicy.RUNTIME)
-@Target({ElementType.FIELD, ElementType.METHOD, ElementType.CONSTRUCTOR})
+@Target({ElementType.FIELD, ElementType.METHOD, ElementType.TYPE})
 public @interface TypeScriptSignature {
 
     /** @return The custom TypeScript signature to output verbatim for this element. */

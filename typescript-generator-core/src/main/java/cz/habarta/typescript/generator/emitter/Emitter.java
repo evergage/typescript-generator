@@ -188,13 +188,23 @@ public class Emitter implements EmitterExtension.Writer {
     private void emitBean(TsBeanModel bean, boolean exportKeyword) {
         writeNewLine();
         emitComments(bean.getComments());
-        final String declarationType = bean.isClass() ? "class" : "interface";
-        final String typeParameters = bean.getTypeParameters().isEmpty() ? "" : "<" + Utils.join(bean.getTypeParameters(), ", ")+ ">";
-        final List<TsType> extendsList = bean.getExtendsList();
-        final List<TsType> implementsList = bean.getImplementsList();
-        final String extendsClause = extendsList.isEmpty() ? "" : " extends " + Utils.join(extendsList, ", ");
-        final String implementsClause = implementsList.isEmpty() ? "" : " implements " + Utils.join(implementsList, ", ");
-        writeIndentedLine(exportKeyword, declarationType + " " + bean.getName().getSimpleName() + typeParameters + extendsClause + implementsClause + " {");
+
+        // Checking here instead of in CustomSignatureTypeProcessor, since we
+        // need DefaultTypeProcessor to return ReferenceType in order to process bean members/contents
+        final String signature = CustomSignatureTypeProcessor.findCustomSignatureFromAnnotationsIfPresent(
+                bean.getOrigin().getDeclaredAnnotations(), bean.getOrigin())
+                .map(TypeScriptSignatureResult::signature)
+                .orElseGet(() -> {
+                    final String declarationType = bean.isClass() ? "class" : "interface";
+                    final String typeParameters = bean.getTypeParameters().isEmpty() ? "" : "<" + Utils.join(bean.getTypeParameters(), ", ")+ ">";
+                    final List<TsType> extendsList = bean.getExtendsList();
+                    final List<TsType> implementsList = bean.getImplementsList();
+                    final String extendsClause = extendsList.isEmpty() ? "" : " extends " + Utils.join(extendsList, ", ");
+                    final String implementsClause = implementsList.isEmpty() ? "" : " implements " + Utils.join(implementsList, ", ");
+                    return declarationType + " " + bean.getName().getSimpleName() + typeParameters + extendsClause + implementsClause;
+                });
+
+        writeIndentedLine(exportKeyword, signature + " {");
         indent++;
         for (TsPropertyModel property : bean.getProperties()) {
             emitProperty(property);
@@ -370,9 +380,19 @@ public class Emitter implements EmitterExtension.Writer {
     private void emitLiteralEnum(TsEnumModel enumModel, boolean exportKeyword, boolean declareKeyword) {
         writeNewLine();
         emitComments(enumModel.getComments());
-        final String declareText = declareKeyword ? "declare " : "";
-        final String constText = enumModel.isNonConstEnum() ? "" : "const ";
-        writeIndentedLine(exportKeyword, declareText + constText + "enum " + enumModel.getName().getSimpleName() + " {");
+
+        // Checking here instead of in CustomSignatureTypeProcessor, since we
+        // need DefaultTypeProcessor to return ReferenceType in order to process bean members/contents
+        final String signature = CustomSignatureTypeProcessor.findCustomSignatureFromAnnotationsIfPresent(
+                enumModel.getOrigin().getDeclaredAnnotations(), enumModel.getOrigin())
+                .map(TypeScriptSignatureResult::signature)
+                .orElseGet(() -> {
+                    final String declareText = declareKeyword ? "declare " : "";
+                    final String constText = enumModel.isNonConstEnum() ? "" : "const ";
+                    return declareText + constText + "enum " + enumModel.getName().getSimpleName();
+                });
+
+        writeIndentedLine(exportKeyword, signature + " {");
         indent++;
         for (EnumMemberModel member : enumModel.getMembers()) {
             emitComments(member.getComments());

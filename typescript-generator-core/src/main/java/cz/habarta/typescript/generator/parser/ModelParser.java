@@ -210,6 +210,11 @@ public abstract class ModelParser {
                 continue;
             }
 
+            // Only public methods
+            if (!Modifier.isPublic(declaredMethod.getModifiers())) {
+                continue;
+            }
+
             // todo: consider separate include/exclude or rename 'member' instead of 'property' annotations?
             Function<Class<? extends Annotation>, Annotation> annotationFinder = annotationClass -> {
                 Annotation annotation = declaredMethod.getAnnotation(annotationClass);

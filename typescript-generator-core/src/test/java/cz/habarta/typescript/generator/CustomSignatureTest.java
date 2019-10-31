@@ -196,19 +196,19 @@ public class CustomSignatureTest {
                 "}\n");
     }
 
-    public static class TestClassWithConstructorsAndStaticMethods {
+    public static class TestClassNonBasic {
         private String string = null;
         private Integer integer = null;
 
-        public TestClassWithConstructorsAndStaticMethods(String string) {
+        public TestClassNonBasic(String string) {
             this.string = string;
         }
 
-        public TestClassWithConstructorsAndStaticMethods(Integer integer) {
+        public TestClassNonBasic(Integer integer) {
             this.integer = integer;
         }
 
-        public TestClassWithConstructorsAndStaticMethods(String string, Integer integer) {
+        public TestClassNonBasic(String string, Integer integer) {
             this.string = string;
             this.integer = integer;
         }
@@ -222,13 +222,21 @@ public class CustomSignatureTest {
         public static Integer calculateSomeInt(String one, @Nullable Integer two) {
             return null;
         }
+
+        protected static void staticProtected() {}
+        static void staticPackagePrivate() {}
+        private static void staticPrivate() {}
+        protected void nonStaticProtected() {}
+        void nonStaticPackagePrivate() {}
+        private void nonStaticPrivate() {}
     }
 
     // Constructors are not supported yet (interfaces could use 'new', classes could use 'constructor')
+    // Non-public methods should not be emitted
     @Test
-    public void testConstructorsAndStaticMethods() {
-        assertExpectedOutputforClass(TestClassWithConstructorsAndStaticMethods.class, "\n" +
-                "interface TestClassWithConstructorsAndStaticMethods {\n" +
+    public void testClassNonBasic() {
+        assertExpectedOutputforClass(TestClassNonBasic.class, "\n" +
+                "interface TestClassNonBasic {\n" +
                 "\n" +
                 "    static calculateSomeInt(one: string, two: number | null): number | null;\n" +
                 "\n" +
@@ -327,7 +335,7 @@ public class CustomSignatureTest {
         @TypeScriptSignature("doStuffForInteger?(one: string, two: number | null): number | null")
         @Export
         @Nullable
-        Integer doStuffForInteger(String one, @Nullable Integer two) { return null; }
+        public Integer doStuffForInteger(String one, @Nullable Integer two) { return null; }
     }
 
     @Test
@@ -341,6 +349,57 @@ public class CustomSignatureTest {
                 "    someStr: string;\n" +
                 "\n" +
                 "    doStuffForInteger?(one: string, two: number | null): number | null;\n" +
+                "}\n");
+    }
+
+    // Generator would have emitted TestInterfaceSignature<T> without fixing via annotation
+    @TypeScriptSignature("interface TestInterfaceSignature<T extends TestInterfaceSignature<T>>")
+    public interface TestInterfaceSignature<T extends TestInterfaceSignature<T>> {
+        @JsonIgnore
+        String getString();
+    }
+
+    @Test
+    public void testInterfaceSignature() {
+        assertExpectedOutputforClass(TestInterfaceSignature.class, "\n" +
+                "interface TestInterfaceSignature<T extends TestInterfaceSignature<T>> {\n" +
+                "\n" +
+                "    getString(): string;\n" +
+                "}\n");
+    }
+
+    @TypeScriptSignature("ClassSignature")
+    public class TestClassSignature {
+        public String str;
+    }
+
+    @Test
+    public void testClassSignature() {
+        assertExpectedOutputforClass(TestClassSignature.class, "\n" +
+                "ClassSignature {\n" +
+                "    str: string;\n" +
+                "}\n");
+    }
+
+    @TypeScriptSignatureViaStaticMethod("provideClassSignature")
+    public static class TestClassSignatureViaStaticMethod {
+
+        @TypeScriptSignature("doStuffForInteger(one: string, two: number | null): number | null")
+        @Nullable
+        public Integer doStuffForInteger(String one, @Nullable Integer two) { return null; }
+
+        @ApiExclude
+        public static TypeScriptSignatureResult provideClassSignature() {
+            return () -> "ClassSignatureViaStaticMethod";
+        }
+    }
+
+    @Test
+    public void testClassSignatureViaStaticMethod() {
+        assertExpectedOutputforClass(TestClassSignatureViaStaticMethod.class, "\n" +
+                "ClassSignatureViaStaticMethod {\n" +
+                "\n" +
+                "    doStuffForInteger(one: string, two: number | null): number | null;\n" +
                 "}\n");
     }
 

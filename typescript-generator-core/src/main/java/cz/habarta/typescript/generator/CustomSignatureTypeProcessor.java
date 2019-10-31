@@ -16,7 +16,9 @@ import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Returns {@link CustomSignatureType} if supported annotations found on element:
@@ -44,40 +46,64 @@ public class CustomSignatureTypeProcessor implements TypeProcessor {
             return null;
         }
 
-        Class<?> declaringClass = member.getDeclaringClass();
+        return findCustomSignatureFromAnnotationsIfPresent(annotations, member.getDeclaringClass())
+                .map(typeScriptSignatureResult -> new Result(
+                        new CustomSignatureType(typeScriptSignatureResult.signature()),
+                        typeScriptSignatureResult.additionalClassesToProcess()))
+                .orElse(null);
+    }
+
+    public static Optional<TypeScriptSignatureResult> findCustomSignatureFromAnnotationsIfPresent(
+            Annotation[] annotations, Class<?> declaringClass) {
         return Arrays.stream(annotations)
                 .map(annotation -> {
                     if (annotation instanceof TypeScriptSignature) {
-                        TypeScriptSignature signatureAnnotation = (TypeScriptSignature) annotation;
-                        String signature = signatureAnnotation.value();
-                        //noinspection ConstantConditions
-                        if (signature == null || signature.isEmpty()) {
-                            throw new RuntimeException("TypeScriptSignature value is required.");
-                        }
-                        return new Result(new CustomSignatureType(signature), signatureAnnotation.additionalClassesToProcess());
+                        return parseAnnotation((TypeScriptSignature) annotation);
                     } else if (annotation instanceof TypeScriptSignatureViaStaticMethod) {
-                        TypeScriptSignatureViaStaticMethod signatureAnnotation = (TypeScriptSignatureViaStaticMethod) annotation;
-                        String staticMethodName = signatureAnnotation.value();
-                        Class<?> clazz = signatureAnnotation.declaringClass();
-                        if (clazz == void.class) {
-                            clazz = declaringClass;
-                        }
-                        try {
-                            Method method = clazz.getDeclaredMethod(staticMethodName);
-                            TypeScriptSignatureResult result = (TypeScriptSignatureResult) method.invoke(null);
-                            return new Result(new CustomSignatureType(result.signature()), result.additionalClassesToProcess());
-                        } catch (Throwable t) {
-                            throw new RuntimeException(
-                                    "Unable to process TypeScriptSignatureViaStaticMethod, static method name: "
-                                            + staticMethodName + " class: " + clazz.getCanonicalName(), t);
-                        }
+                        return parseAnnotation((TypeScriptSignatureViaStaticMethod) annotation, declaringClass);
                     } else {
                         return null;
                     }
                 })
                 .filter(Objects::nonNull)
-                .findFirst()
-                .orElse(null);
+                .findFirst();
+    }
+
+    private static TypeScriptSignatureResult parseAnnotation(TypeScriptSignature annotation) {
+        String signature = annotation.value();
+        //noinspection ConstantConditions
+        if (signature == null || signature.isEmpty()) {
+            throw new RuntimeException("TypeScriptSignature value is required.");
+        }
+
+        return new TypeScriptSignatureResult() {
+            @Override
+            public String signature() {
+                return signature;
+            }
+
+            @Override
+            public List<Class<?>> additionalClassesToProcess() {
+                return Arrays.asList(annotation.additionalClassesToProcess());
+            }
+        };
+    }
+
+    private static TypeScriptSignatureResult parseAnnotation(
+            TypeScriptSignatureViaStaticMethod annotation, Class<?> declaringClass) {
+        String staticMethodName = annotation.value();
+        Class<?> clazz = annotation.declaringClass();
+        if (clazz == void.class) {
+            clazz = declaringClass;
+        }
+        try {
+            Method method = clazz.getDeclaredMethod(staticMethodName);
+            return (TypeScriptSignatureResult) method.invoke(null);
+        } catch (Throwable t) {
+            throw new RuntimeException(
+                    "Unable to process TypeScriptSignatureViaStaticMethod, static method name: "
+                            + staticMethodName + " class: " + clazz.getCanonicalName(), t);
+        }
     }
 
 }
