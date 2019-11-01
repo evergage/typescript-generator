@@ -136,11 +136,11 @@ public class TypeScriptGenerator {
 
     private TypeProcessor createTypeProcessor(List<TypeProcessor> specificTypeProcessors) {
         final List<TypeProcessor> processors = new ArrayList<>();
+        processors.add(new CustomSignatureTypeProcessor()); // So we can selectively output even if would otherwise be excluded
         processors.add(new ExcludingTypeProcessor(settings.getExcludeFilter()));
         if (settings.customTypeProcessor != null) {
             processors.add(settings.customTypeProcessor);
         }
-        processors.add(new CustomSignatureTypeProcessor());
         processors.add(new CustomMappingTypeProcessor(settings.customTypeMappings));
         if (settings.emitSAMs != null && !settings.emitSAMs.equals(EmitSAMStrictness.noEmitSAM)) {
             processors.add(new SAMTypeProcessor(settings.emitSAMs));

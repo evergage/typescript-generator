@@ -479,6 +479,26 @@ public class CustomSignatureTest {
         }
     }
 
+    public static class ClassExcluded {}
+
+    public interface InterfaceWithMethodReturnTypeExcluded {
+        @TypeScriptSignature("aMethod(): ClassExcluded")
+        ClassExcluded aMethod();
+    }
+
+    @Test
+    public void testInterfaceWithMethodReturnTypeExcluded() {
+        Settings settings = defaultSettings();
+        settings.setExcludeFilter(Collections.singletonList(ClassExcluded.class.getName()), Collections.emptyList());
+        typeScriptGenerator = new TypeScriptGenerator(settings);
+
+        assertExpectedOutputforClass(InterfaceWithMethodReturnTypeExcluded.class, "\n" +
+                "interface InterfaceWithMethodReturnTypeExcluded {\n" +
+                "\n" +
+                "    aMethod(): ClassExcluded;\n" +
+                "}\n");
+    }
+
     private void assertExpectedOutputforClass(Class<?> clazz, String expectedOutput) {
         String output = typeScriptGenerator.generateTypeScript(Input.from(clazz));
         Assert.assertEquals(expectedOutput, output);
