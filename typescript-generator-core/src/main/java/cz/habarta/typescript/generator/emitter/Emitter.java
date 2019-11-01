@@ -191,8 +191,10 @@ public class Emitter implements EmitterExtension.Writer {
 
         // Checking here instead of in CustomSignatureTypeProcessor, since we
         // need DefaultTypeProcessor to return ReferenceType in order to process bean members/contents
-        final String signature = CustomSignatureTypeProcessor.findCustomSignatureFromAnnotationsIfPresent(
-                bean.getOrigin().getDeclaredAnnotations(), bean.getOrigin(), bean.getOrigin().getName())
+        Optional<TypeScriptSignatureResult> customSignature = bean.getOrigin() == null ? Optional.empty() :
+            CustomSignatureTypeProcessor.findCustomSignatureFromAnnotationsIfPresent(
+                    bean.getOrigin().getDeclaredAnnotations(), bean.getOrigin(), bean.getOrigin().getName());
+        final String signature = customSignature
                 .map(TypeScriptSignatureResult::signature)
                 .orElseGet(() -> {
                     final String declarationType = bean.isClass() ? "class" : "interface";
@@ -383,8 +385,10 @@ public class Emitter implements EmitterExtension.Writer {
 
         // Checking here instead of in CustomSignatureTypeProcessor, since we
         // need DefaultTypeProcessor to return ReferenceType in order to process bean members/contents
-        final String signature = CustomSignatureTypeProcessor.findCustomSignatureFromAnnotationsIfPresent(
-                enumModel.getOrigin().getDeclaredAnnotations(), enumModel.getOrigin(), enumModel.getOrigin().getName())
+        Optional<TypeScriptSignatureResult> customSignature = enumModel.getOrigin() == null ? Optional.empty() :
+                CustomSignatureTypeProcessor.findCustomSignatureFromAnnotationsIfPresent(
+                        enumModel.getOrigin().getDeclaredAnnotations(), enumModel.getOrigin(), enumModel.getOrigin().getName());
+        final String signature = customSignature
                 .map(TypeScriptSignatureResult::signature)
                 .orElseGet(() -> {
                     final String declareText = declareKeyword ? "declare " : "";
