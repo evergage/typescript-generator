@@ -221,7 +221,7 @@ public class SpringApplicationParser extends RestApplicationParser {
                 foundType(result, modelReturnType, controllerClass, method.getName());
             }
 
-            model.getMethods().add(new RestMethodModel(controllerClass, method.getName(), modelReturnType,
+            model.getMethods().add(new RestMethodModel(controllerClass, method, method.getName(), modelReturnType,
                     controllerClass, httpMethod.name(), context.path, pathParams, queryParams, entityParameter, null));
         }
     }

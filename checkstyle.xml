@@ -11,10 +11,12 @@
 
     <module name="TreeWalker">
 
+        <!--
         <module name="ImportOrder">
             <property name="option" value="inflow"/>
             <property name="sortStaticImportsAlphabetically" value="true"/>
         </module>
+        -->
 
     </module>
 </module>

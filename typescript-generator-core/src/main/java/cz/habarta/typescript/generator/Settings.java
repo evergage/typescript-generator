@@ -100,7 +100,11 @@ public class Settings {
     public boolean jackson2ModuleDiscovery = false;
     public List<Class<? extends Module>> jackson2Modules = new ArrayList<>();
     public ClassLoader classLoader = null;
+    // Consider bitfield/options for emit method controls
     public boolean emitAbstractMethodsInBeans = false;
+    public boolean emitDefaultMethods = false;
+    public boolean emitStaticMethods = false;
+    public boolean emitOtherMethods = false;
     public EmitSAMStrictness emitSAMs = EmitSAMStrictness.noEmitSAM;
 
     private boolean defaultStringEnumsOverriddenByExtension = false;

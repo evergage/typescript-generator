@@ -3,6 +3,8 @@ package cz.habarta.typescript.generator;
 
 import cz.habarta.typescript.generator.compiler.Symbol;
 import cz.habarta.typescript.generator.compiler.SymbolTable;
+
+import java.lang.reflect.Member;
 import java.lang.reflect.Type;
 import java.util.*;
 
@@ -14,17 +16,17 @@ public interface TypeProcessor {
      */
     public Result processType(Type javaType, Context context);
 
-    public default Result processTypeInTemporaryContext(Type type, Object typeContext, Settings settings) {
-        return processType(type, new Context(new SymbolTable(settings), this, typeContext));
+    public default Result processTypeInTemporaryContext(Type type, Member member, Object typeContext, Settings settings) {
+        return processType(type, new Context(new SymbolTable(settings), this, member, typeContext));
     }
 
-    public default List<Class<?>> discoverClassesUsedInType(Type type, Object typeContext, Settings settings) {
-        final TypeProcessor.Result result = processTypeInTemporaryContext(type, typeContext, settings);
+    public default List<Class<?>> discoverClassesUsedInType(Type type, Member member, Object typeContext, Settings settings) {
+        final TypeProcessor.Result result = processTypeInTemporaryContext(type, member, typeContext, settings);
         return result != null ? result.getDiscoveredClasses() : Collections.emptyList();
     }
 
     public default boolean isTypeExcluded(Type type, Object typeContext, Settings settings) {
-        final TypeProcessor.Result result = processTypeInTemporaryContext(type, typeContext, settings);
+        final TypeProcessor.Result result = processTypeInTemporaryContext(type, null, typeContext, settings);
         return result != null && result.tsType == TsType.Any;
     }
 
@@ -33,10 +35,12 @@ public interface TypeProcessor {
         private final SymbolTable symbolTable;
         private final TypeProcessor typeProcessor;
         private final Object typeContext;
+        private final Member member;
 
-        public Context(SymbolTable symbolTable, TypeProcessor typeProcessor, Object typeContext) {
+        public Context(SymbolTable symbolTable, TypeProcessor typeProcessor, Member member, Object typeContext) {
             this.symbolTable = Objects.requireNonNull(symbolTable, "symbolTable");
             this.typeProcessor = Objects.requireNonNull(typeProcessor, "typeProcessor");
+            this.member = member;
             this.typeContext = typeContext;
         }
 
@@ -53,9 +57,12 @@ public interface TypeProcessor {
         }
 
         public Context withTypeContext(Object typeContext) {
-            return new Context(symbolTable, typeProcessor, typeContext);
+            return new Context(symbolTable, typeProcessor, member, typeContext);
         }
 
+        public Member getMember() {
+            return member;
+        }
     }
 
     public static class Result {
@@ -65,12 +72,12 @@ public interface TypeProcessor {
 
         public Result(TsType tsType, List<Class<?>> discoveredClasses) {
             this.tsType = tsType;
-            this.discoveredClasses = discoveredClasses;
+            this.discoveredClasses = discoveredClasses != null ? discoveredClasses : Collections.emptyList();
         }
 
         public Result(TsType tsType, Class<?>... discoveredClasses) {
             this.tsType = tsType;
-            this.discoveredClasses = Arrays.asList(discoveredClasses);
+            this.discoveredClasses = discoveredClasses != null ? Arrays.asList(discoveredClasses) : Collections.emptyList();
         }
 
         public TsType getTsType() {

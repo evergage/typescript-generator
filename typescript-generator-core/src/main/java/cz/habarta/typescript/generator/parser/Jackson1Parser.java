@@ -6,6 +6,8 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Member;
 import java.lang.reflect.Type;
 import java.util.*;
+import java.util.function.Function;
+
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.annotate.JsonSubTypes;
 import org.codehaus.jackson.annotate.JsonTypeInfo;
@@ -73,7 +75,16 @@ public class Jackson1Parser extends ModelParser {
                 final Member propertyMember = beanPropertyWriter.getMember().getMember();
                 checkMember(propertyMember, beanPropertyWriter.getName(), sourceClass.type);
                 Type propertyType = beanPropertyWriter.getGenericPropertyType();
-                if (!isAnnotatedPropertyIncluded(beanPropertyWriter::getAnnotation, sourceClass.type.getName() + "." + beanPropertyWriter.getName())) {
+                Function<Class<? extends Annotation>, Annotation> annotationFinder = annotationClass -> {
+                    Annotation annotation = beanPropertyWriter.getAnnotation(annotationClass);
+                    if (annotation == null) {
+                        // If not found, fallback to checking class level
+                        annotation = sourceClass.type.getAnnotation(annotationClass);
+                    }
+                    return annotation;
+                };
+                if (!isAnnotatedPropertyIncluded(
+                        annotationFinder, sourceClass.type.getName() + "." + beanPropertyWriter.getName())) {
                     continue;
                 }
                 final boolean optional = isAnnotatedPropertyOptional(beanPropertyWriter::getAnnotation);
@@ -105,9 +116,7 @@ public class Jackson1Parser extends ModelParser {
 
         List<MethodModel> methods = new ArrayList<>();
 
-        if (settings.emitAbstractMethodsInBeans) {
-            processMethods(sourceClass, properties, methods);
-        }
+        processMethods(sourceClass, properties, methods);
 
         return new BeanModel(sourceClass.type, superclass, null, null, null, interfaces, properties, null, methods);
     }

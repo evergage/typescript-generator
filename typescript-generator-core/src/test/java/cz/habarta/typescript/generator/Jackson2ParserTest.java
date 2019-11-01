@@ -90,10 +90,10 @@ public class Jackson2ParserTest {
 
         // Expect "enabled" and "name"
         Assert.assertEquals(2, beanModel.getProperties().size());
-        PropertyModel propertyModel = beanModel.getProperties().get(1);
-        Assert.assertEquals("enabled", propertyModel.getName());
-        propertyModel = beanModel.getProperties().get(0);
-        Assert.assertEquals("name", propertyModel.getName());
+        // Non-deterministic order
+        for (PropertyModel propertyModel : beanModel.getProperties()) {
+            Assert.assertTrue("enabled".equals(propertyModel.getName()) || "name".equals(propertyModel.getName()));
+        }
 
         Assert.assertEquals(1, beanModel.getMethods().size());
         MethodModel methodModel = beanModel.getMethods().get(0);

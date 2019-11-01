@@ -81,7 +81,7 @@ public abstract class ModelParser {
                 continue;
             }
 
-            final TypeProcessor.Result result = commonTypeProcessor.processTypeInTemporaryContext(sourceType.type, null, settings);
+            final TypeProcessor.Result result = commonTypeProcessor.processTypeInTemporaryContext(sourceType.type, null, null, settings);
             if (result != null) {
                 if (sourceType.type instanceof Class<?> && result.getTsType() instanceof TsType.ReferenceType) {
                     final Class<?> cls = (Class<?>) sourceType.type;
@@ -161,7 +161,7 @@ public abstract class ModelParser {
     }
 
     protected PropertyModel processTypeAndCreateProperty(String name, Type type, Object typeContext, boolean optional, Class<?> usedInClass, Member originalMember, PropertyModel.PullProperties pullProperties, List<String> comments) {
-        final List<Class<?>> classes = commonTypeProcessor.discoverClassesUsedInType(type, typeContext, settings);
+        final List<Class<?>> classes = commonTypeProcessor.discoverClassesUsedInType(type, originalMember, typeContext, settings);
         for (Class<?> cls : classes) {
             typeQueue.add(new SourceType<>(cls, usedInClass, name));
         }
@@ -179,21 +179,59 @@ public abstract class ModelParser {
 
     protected void processMethods(SourceType<Class<?>> sourceClass, List<PropertyModel> properties,
                                   List<MethodModel> methods) {
+        if (!settings.emitAbstractMethodsInBeans &&
+                !settings.emitDefaultMethods &&
+                !settings.emitStaticMethods &&
+                !settings.emitOtherMethods ) {
+            return;
+        }
+
         Set<String> propertyMethods = findMethodNamesForMethodProperties(properties);
 
         Method[] declaredMethods = sourceClass.type.getDeclaredMethods();
         for (Method declaredMethod : declaredMethods) {
-            if (propertyMethods.contains(declaredMethod.getName())) {
+            if (declaredMethod.isSynthetic() || propertyMethods.contains(declaredMethod.getName())) {
                 continue;
             }
 
-            // Only include abstract methods
-            if (!Modifier.isAbstract(declaredMethod.getModifiers())) {
+            if (Modifier.isAbstract(declaredMethod.getModifiers())) {
+                if (!settings.emitAbstractMethodsInBeans) {
+                    continue;
+                }
+            } else if (declaredMethod.isDefault()) {
+                if (!settings.emitDefaultMethods) {
+                    continue;
+                }
+            } else if (Modifier.isStatic(declaredMethod.getModifiers())) {
+                if (!settings.emitStaticMethods) {
+                    continue;
+                }
+            } else if (!settings.emitOtherMethods) {
+                continue;
+            }
+
+            // Only public methods
+            if (!Modifier.isPublic(declaredMethod.getModifiers())) {
+                continue;
+            }
+
+            // todo: consider separate include/exclude or rename 'member' instead of 'property' annotations?
+            Function<Class<? extends Annotation>, Annotation> annotationFinder = annotationClass -> {
+                Annotation annotation = declaredMethod.getAnnotation(annotationClass);
+                if (annotation == null) {
+                    // If not found, fallback to checking class level
+                    annotation = declaredMethod.getDeclaringClass().getAnnotation(annotationClass);
+                }
+                return annotation;
+            };
+            if (!isAnnotatedPropertyIncluded(
+                    annotationFinder, sourceClass.type.getName() + "." + declaredMethod.getName())) {
                 continue;
             }
 
             List<MethodParameterModel> params = processTypedButUnnamedParameters(declaredMethod);
             methods.add(new MethodModel(sourceClass.type,
+                                        declaredMethod,
                                         declaredMethod.getName(),
                                         params,
                                         declaredMethod.getGenericReturnType(),

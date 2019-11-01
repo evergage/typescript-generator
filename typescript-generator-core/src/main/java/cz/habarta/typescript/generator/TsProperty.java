@@ -1,6 +1,7 @@
 
 package cz.habarta.typescript.generator;
 
+import cz.habarta.typescript.generator.TsType.CustomSignatureType;
 import cz.habarta.typescript.generator.emitter.Emitter;
 
 
@@ -23,8 +24,13 @@ public class TsProperty {
     }
 
     public String format(Settings settings) {
-        final String questionMark = (tsType instanceof TsType.OptionalType) ? "?" : "";
-        return Emitter.quoteIfNeeded(name, settings) + questionMark + ": " + tsType.format(settings) + ";";
+        // todo: no modifiers?
+        if (tsType instanceof CustomSignatureType) {
+            return tsType.format(settings);
+        } else {
+            final String questionMark = (tsType instanceof TsType.OptionalType) ? "?" : "";
+            return Emitter.quoteIfNeeded(name, settings) + questionMark + ": " + tsType.format(settings) + ";";
+        }
     }
 
 }

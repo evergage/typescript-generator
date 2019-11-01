@@ -1,6 +1,7 @@
 
 package cz.habarta.typescript.generator.parser;
 
+import java.lang.reflect.Method;
 import java.lang.reflect.Type;
 import java.util.*;
 
@@ -14,10 +15,10 @@ public class RestMethodModel extends MethodModel {
     private final List<RestQueryParam> queryParams;
     private final MethodParameterModel entityParam;
 
-    public RestMethodModel(Class<?> originClass, String name, Type returnType,
+    public RestMethodModel(Class<?> originClass, Method method, String name, Type returnType,
             Class<?> rootResource, String httpMethod, String path, List<MethodParameterModel> pathParams, List<RestQueryParam> queryParams, MethodParameterModel entityParam,
             List<String> comments) {
-        super(originClass, name, null, returnType, comments);
+        super(originClass, method, name, null, returnType, comments);
         this.rootResource = rootResource;
         this.httpMethod = httpMethod;
         this.path = path;

@@ -2,6 +2,7 @@
 package cz.habarta.typescript.generator.compiler;
 
 import cz.habarta.typescript.generator.*;
+import cz.habarta.typescript.generator.TsType.CustomSignatureType;
 import cz.habarta.typescript.generator.emitter.*;
 import cz.habarta.typescript.generator.parser.*;
 import cz.habarta.typescript.generator.util.Pair;
@@ -103,6 +104,7 @@ public class ModelCompiler {
 
         // optional properties
         tsModel = transformOptionalProperties(symbolTable, tsModel);
+        // todo: similar for methods with optional return values?
 
         tsModel = applyExtensionTransformers(symbolTable, tsModel, TransformationPhase.BeforeSymbolResolution, extensionTransformers);
         symbolTable.resolveSymbolNames();
@@ -251,10 +253,11 @@ public class ModelCompiler {
                         .collect(Collectors.toList());
 
         return new TsMethodModel(method.getName(),
-                                 TsModifierFlags.None,
+                                 TsModifierFlags.None.setStatic(Modifier.isStatic(method.getMethod().getModifiers())),
                                  null,
                                  parameters,
-                                 javaToTypeScript(method.getReturnType()),
+                                 // todo : if return type has optional annotation, should be union with undefined or null (depending on settings)?  prob set optional here and handle in emit? see what done for props
+                                 typeFromJava(symbolTable, method.getReturnType(), method.getMethod(), null, method.getName(), method.getOriginClass()),
                                  null,
                                  method.getComments());
     }
@@ -329,9 +332,9 @@ public class ModelCompiler {
     }
 
     private TsPropertyModel processProperty(SymbolTable symbolTable, BeanModel bean, PropertyModel property, String prefix, String suffix) {
-        final TsType type = typeFromJava(symbolTable, property.getType(), property.getContext(), property.getName(), bean.getOrigin());
-        final TsType tsType = property.isOptional() ? type.optional() : type;
-        final TsModifierFlags modifiers = TsModifierFlags.None.setReadonly(settings.declarePropertiesAsReadOnly);
+        final TsType type = typeFromJava(symbolTable, property.getType(), property.getOriginalMember(), property.getContext(), property.getName(), bean.getOrigin());
+        final TsType tsType = (property.isOptional() && !(type instanceof CustomSignatureType)) ? type.optional() : type;
+        final TsModifierFlags modifiers = TsModifierFlags.None.setReadonly(settings.declarePropertiesAsReadOnly); // todo: should be able to detect final field and getter method with no setter
         return new TsPropertyModel(prefix + property.getName() + suffix, tsType, modifiers, /*ownProperty*/ false, property.getComments());
     }
 
@@ -359,14 +362,14 @@ public class ModelCompiler {
     }
 
     private TsType typeFromJava(SymbolTable symbolTable, Type javaType, String usedInProperty, Class<?> usedInClass) {
-        return typeFromJava(symbolTable, javaType, null, usedInProperty, usedInClass);
+        return typeFromJava(symbolTable, javaType, null, null, usedInProperty, usedInClass);
     }
 
-    private TsType typeFromJava(SymbolTable symbolTable, Type javaType, Object typeContext, String usedInProperty, Class<?> usedInClass) {
+    private TsType typeFromJava(SymbolTable symbolTable, Type javaType, Member member, Object typeContext, String usedInProperty, Class<?> usedInClass) {
         if (javaType == null) {
             return null;
         }
-        final TypeProcessor.Context context = new TypeProcessor.Context(symbolTable, typeProcessor, typeContext);
+        final TypeProcessor.Context context = new TypeProcessor.Context(symbolTable, typeProcessor, member, typeContext);
         final TypeProcessor.Result result = context.processType(javaType);
         if (result != null) {
             return result.getTsType();
@@ -869,6 +872,7 @@ public class ModelCompiler {
         if (settings.sortDeclarations) {
             for (TsBeanModel bean : beans) {
                 Collections.sort(bean.getProperties());
+                Collections.sort(bean.getMethods());
             }
         }
         if (settings.sortDeclarations || settings.sortTypeDeclarations) {

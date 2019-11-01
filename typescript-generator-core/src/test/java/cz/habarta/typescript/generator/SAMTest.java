@@ -88,7 +88,7 @@ public class SAMTest {
     }
 
     public abstract class SetterTest {
-        abstract SupplierSAM<Integer> setThing(String thingKey, Object val, Function<String, String> function);
+        public abstract SupplierSAM<Integer> setThing(String thingKey, Object val, Function<String, String> function);
     }
 
     private static void testOutput(Class<?> inputClass, String expected) {
