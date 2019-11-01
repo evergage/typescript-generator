@@ -403,6 +403,82 @@ public class CustomSignatureTest {
                 "}\n");
     }
 
+    @TypeScriptSignature("interface InterfaceAmbiguousSignature")
+    @TypeScriptSignatureViaStaticMethod("sig")
+    public interface InterfaceAmbiguousSignature {
+        @ApiExclude
+        static TypeScriptSignatureResult sig() { return () -> "interface InterfaceAmbiguousSignature"; }
+    }
+
+    @Test
+    public void testInterfaceAmbiguousSignature() {
+        try {
+            assertExpectedOutputforClass(InterfaceAmbiguousSignature.class, "");
+            assert false; // Should not reach here
+        } catch (Exception e) {
+            assert e.getMessage().contains("Only one signature annotation allowed, but found multiple");
+            assert e.getMessage().contains("CustomSignatureTest$InterfaceAmbiguousSignature");
+        }
+    }
+
+    @TypeScriptSignature("class InterfaceAmbiguousSignature")
+    @TypeScriptSignatureViaStaticMethod("sig")
+    public static class ClassAmbiguousSignature {
+        @ApiExclude
+        static TypeScriptSignatureResult sig() { return () -> "interface InterfaceAmbiguousSignature"; }
+    }
+
+    @Test
+    public void testClassAmbiguousSignature() {
+        try {
+            assertExpectedOutputforClass(ClassAmbiguousSignature.class, "");
+            assert false; // Should not reach here
+        } catch (Exception e) {
+            assert e.getMessage().contains("Only one signature annotation allowed, but found multiple");
+            assert e.getMessage().contains("CustomSignatureTest$ClassAmbiguousSignature");
+        }
+    }
+
+    public static class ClassWithAmbiguousFieldSignature {
+        @TypeScriptSignature("aField: string")
+        @TypeScriptSignatureViaStaticMethod("sig")
+        public String aField;
+
+        @ApiExclude
+        static TypeScriptSignatureResult sig() { return () -> "aField: string"; }
+    }
+
+    @Test
+    public void testClassWithAmbiguousFieldSignature() {
+        try {
+            assertExpectedOutputforClass(ClassWithAmbiguousFieldSignature.class, "");
+            assert false; // Should not reach here
+        } catch (Exception e) {
+            assert e.getMessage().contains("Only one signature annotation allowed, but found multiple");
+            assert e.getMessage().contains("CustomSignatureTest$ClassWithAmbiguousFieldSignature.aField");
+        }
+    }
+
+    public static class ClassWithAmbiguousMethodSignature {
+        @TypeScriptSignature("aMethod(): string")
+        @TypeScriptSignatureViaStaticMethod("sig")
+        public String aMethod() { return ""; }
+
+        @ApiExclude
+        static TypeScriptSignatureResult sig() { return () -> "aMethod(): string"; }
+    }
+
+    @Test
+    public void testClassWithAmbiguousMethodSignature() {
+        try {
+            assertExpectedOutputforClass(ClassWithAmbiguousMethodSignature.class, "");
+            assert false; // Should not reach here
+        } catch (Exception e) {
+            assert e.getMessage().contains("Only one signature annotation allowed, but found multiple");
+            assert e.getMessage().contains("CustomSignatureTest$ClassWithAmbiguousMethodSignature.aMethod");
+        }
+    }
+
     private void assertExpectedOutputforClass(Class<?> clazz, String expectedOutput) {
         String output = typeScriptGenerator.generateTypeScript(Input.from(clazz));
         Assert.assertEquals(expectedOutput, output);

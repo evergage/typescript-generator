@@ -192,7 +192,7 @@ public class Emitter implements EmitterExtension.Writer {
         // Checking here instead of in CustomSignatureTypeProcessor, since we
         // need DefaultTypeProcessor to return ReferenceType in order to process bean members/contents
         final String signature = CustomSignatureTypeProcessor.findCustomSignatureFromAnnotationsIfPresent(
-                bean.getOrigin().getDeclaredAnnotations(), bean.getOrigin())
+                bean.getOrigin().getDeclaredAnnotations(), bean.getOrigin(), bean.getOrigin().getName())
                 .map(TypeScriptSignatureResult::signature)
                 .orElseGet(() -> {
                     final String declarationType = bean.isClass() ? "class" : "interface";
@@ -384,7 +384,7 @@ public class Emitter implements EmitterExtension.Writer {
         // Checking here instead of in CustomSignatureTypeProcessor, since we
         // need DefaultTypeProcessor to return ReferenceType in order to process bean members/contents
         final String signature = CustomSignatureTypeProcessor.findCustomSignatureFromAnnotationsIfPresent(
-                enumModel.getOrigin().getDeclaredAnnotations(), enumModel.getOrigin())
+                enumModel.getOrigin().getDeclaredAnnotations(), enumModel.getOrigin(), enumModel.getOrigin().getName())
                 .map(TypeScriptSignatureResult::signature)
                 .orElseGet(() -> {
                     final String declareText = declareKeyword ? "declare " : "";

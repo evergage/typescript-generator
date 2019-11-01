@@ -46,7 +46,7 @@ public class CustomSignatureTypeProcessor implements TypeProcessor {
             return null;
         }
 
-        return findCustomSignatureFromAnnotationsIfPresent(annotations, member.getDeclaringClass())
+        return findCustomSignatureFromAnnotationsIfPresent(annotations, member.getDeclaringClass(), member.toString())
                 .map(typeScriptSignatureResult -> new Result(
                         new CustomSignatureType(typeScriptSignatureResult.signature()),
                         typeScriptSignatureResult.additionalClassesToProcess()))
@@ -54,7 +54,7 @@ public class CustomSignatureTypeProcessor implements TypeProcessor {
     }
 
     public static Optional<TypeScriptSignatureResult> findCustomSignatureFromAnnotationsIfPresent(
-            Annotation[] annotations, Class<?> declaringClass) {
+            Annotation[] annotations, Class<?> declaringClass, String ownerDescription) {
         return Arrays.stream(annotations)
                 .map(annotation -> {
                     if (annotation instanceof TypeScriptSignature) {
@@ -66,7 +66,10 @@ public class CustomSignatureTypeProcessor implements TypeProcessor {
                     }
                 })
                 .filter(Objects::nonNull)
-                .findFirst();
+                .reduce((a, b) -> {
+                    throw new RuntimeException(
+                            "Only one signature annotation allowed, but found multiple on: " + ownerDescription);
+                });
     }
 
     private static TypeScriptSignatureResult parseAnnotation(TypeScriptSignature annotation) {
