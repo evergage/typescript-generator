@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>com.evergage.thirdparty</groupId>
+        <groupId>com.evergage.thirdparty.typescript-generator</groupId>
         <artifactId>typescript-generator</artifactId>
         <version>2.13-evg2</version>
     </parent>
@@ -18,7 +18,7 @@
     <dependencies>
         <!--compile dependencies-->
         <dependency>
-            <groupId>com.evergage.thirdparty</groupId>
+            <groupId>com.evergage.thirdparty.typescript-generator</groupId>
             <artifactId>typescript-generator-core</artifactId>
             <version>${project.version}</version>
         </dependency>
@@ -35,7 +35,7 @@
         </dependency>
         <!--test dependencies-->
         <dependency>
-            <groupId>com.evergage.thirdparty</groupId>
+            <groupId>com.evergage.thirdparty.typescript-generator</groupId>
             <artifactId>typescript-generator-core</artifactId>
             <version>${project.version}</version>
             <type>test-jar</type>
