@@ -62,6 +62,11 @@
             <artifactId>classgraph</artifactId>
             <version>4.8.24</version>
         </dependency>
+        <dependency>
+            <groupId>org.openjdk.nashorn</groupId>
+            <artifactId>nashorn-core</artifactId>
+            <version>15.4</version>
+        </dependency>
         <!--test dependencies-->
         <dependency>
             <groupId>junit</groupId>
@@ -151,14 +156,14 @@
                             <goal>test-javadoc</goal>
                         </goals>
                         <configuration>
-                            <doclet>com.github.markusbernhardt.xmldoclet.XmlDoclet</doclet>
+                            <doclet>com.github.markusbernhardt.xmldoclet.NewXmlDoclet</doclet>
                             <additionalOptions>-d ${project.build.directory} -filename test-javadoc.xml</additionalOptions>
                             <useStandardDocletOptions>false</useStandardDocletOptions>
                             <docletArtifacts>
                                 <docletArtifact>
-                                    <groupId>com.github.markusbernhardt</groupId>
+                                    <groupId>com.evergage.thirdparty.xml-doclet</groupId>
                                     <artifactId>xml-doclet</artifactId>
-                                    <version>1.0.5</version>
+                                    <version>1.0.6-evg1</version>
                                 </docletArtifact>
                                 <docletArtifact>
                                     <groupId>javax.xml.bind</groupId>
