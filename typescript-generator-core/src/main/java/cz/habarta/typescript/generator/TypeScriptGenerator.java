@@ -210,7 +210,7 @@ public class TypeScriptGenerator {
     private static String getVersion() {
         try {
             final InputStream inputStream = TypeScriptGenerator.class.getResourceAsStream(
-                    "/META-INF/maven/cz.habarta.typescript-generator/typescript-generator-core/pom.properties");
+                    "/META-INF/maven/com.evergage.thirdparty.typescript-generator/typescript-generator-spring/pom.properties");
             if (inputStream != null) {
                 final Properties properties = new Properties();
                 properties.load(inputStream);
